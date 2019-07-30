@@ -11,11 +11,12 @@ return [
     | API, giving you convenient access to each back-end using the same
     | syntax for each one. Here you may set the default queue driver.
     |
-    | Supported: "null", "sync", "database", "beanstalkd", "sqs", "redis"
+    | Supported: "null", "sync", "database", "beanstalkd",
+    |            "sqs", "redis"
     |
     */
 
-    'default' => env('QUEUE_DRIVER', 'redis'),
+    'default' => env('QUEUE_DRIVER', 'database'),
 
     /*
     |--------------------------------------------------------------------------
@@ -30,11 +31,20 @@ return [
 
     'connections' => [
 
+        'database' => [
+            'connection' => env('QUEUE_CONN', ''),
+            'database' => env('QUEUE_DATABASE', ''),
+            'driver'   => 'database',
+            'table'    => 'queue_jobs',
+            'queue'    => 'default',
+            'expire'   => 60,
+        ],
+
         'redis' => [
-            'driver'     => 'redis',
+            'driver' => 'redis',
             'connection' => 'default',
-            'queue'      => 'default',
-            'expire'     => 60,
+            'queue' => 'default',
+            'expire' => 60,
         ],
 
     ],
@@ -51,8 +61,9 @@ return [
     */
 
     'failed' => [
-        'database' => env('DB_CONNECTION', 'config'),
-        'table' => 'failed_jobs',
+        'connection' => env('QUEUE_CONN', ''),
+        'database' => env('QUEUE_CONN', ''),
+        'table'   => 'queue_failed_jobs',
     ],
 
 ];

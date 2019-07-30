@@ -14,6 +14,14 @@
 use App\EntityPersisters\AdminSummitEventActionSyncWorkRequestPersister;
 use App\EntityPersisters\AdminSummitLocationActionSyncWorkRequestPersister;
 use App\EntityPersisters\EntityEventPersister;
+use App\Events\NewMember;
+use App\Events\OrderDeleted;
+use App\Events\PaymentSummitRegistrationOrderConfirmed;
+use App\Events\RequestedSummitAttendeeTicketRefund;
+use App\Events\RequestedSummitOrderRefund;
+use App\Events\SummitAttendeeTicketRefundAccepted;
+use App\Events\SummitOrderCanceled;
+use App\Events\SummitOrderRefundAccepted;
 use App\Factories\CalendarAdminActionSyncWorkRequest\AdminSummitLocationActionSyncWorkRequestFactory;
 use App\Factories\CalendarAdminActionSyncWorkRequest\SummitEventDeletedCalendarSyncWorkRequestFactory;
 use App\Factories\CalendarAdminActionSyncWorkRequest\SummitEventUpdatedCalendarSyncWorkRequestFactory;
@@ -38,6 +46,12 @@ use App\Factories\EntityEvents\SummitEventUpdatedEntityEventFactory;
 use App\Factories\EntityEvents\SummitTicketTypeActionEntityEventFactory;
 use App\Factories\EntityEvents\TrackActionEntityEventFactory;
 use App\Factories\EntityEvents\TrackGroupActionActionEntityEventFactory;
+use App\Jobs\CompensatePromoCodes;
+use App\Jobs\CompensateTickets;
+use App\Jobs\NewMemberAssocSummitOrders;
+use App\Jobs\ProcessOrderRefundRequest;
+use App\Jobs\ProcessSummitOrderPaymentConfirmation;
+use App\Jobs\ProcessTicketRefundRequest;
 use App\Mail\BookableRoomReservationCanceledEmail;
 use App\Mail\BookableRoomReservationCreatedEmail;
 use App\Mail\BookableRoomReservationPaymentConfirmedEmail;
@@ -47,10 +61,14 @@ use App\Mail\BookableRoomReservationRefundRequestedOwnerEmail;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use LaravelDoctrine\ORM\Facades\EntityManager;
+use models\summit\Summit;
+use models\summit\SummitAttendee;
+use models\summit\SummitAttendeeTicket;
+use models\summit\SummitOrder;
 use models\summit\SummitRoomReservation;
-
 /**
  * Class EventServiceProvider
  * @package App\Providers
@@ -83,7 +101,7 @@ final class EventServiceProvider extends ServiceProvider
 
         Event::listen(\Illuminate\Mail\Events\MessageSending::class, function($event){
             $devEmail = env('DEV_EMAIL_TO');
-            if((App::environment() === 'dev' || App::environment() === 'testing') && !empty($devEmail)){
+            if(in_array(App::environment(), ['local','dev','testing']) && !empty($devEmail)){
                 $event->message->setTo(explode(",", $devEmail));
             }
             return true;
@@ -257,7 +275,6 @@ final class EventServiceProvider extends ServiceProvider
         Event::listen(\App\Events\FloorUpdated::class, function($event)
         {
             EntityEventPersister::persist(FloorActionEntityEventFactory::build($event, 'UPDATE'));
-
         });
 
         Event::listen(\App\Events\FloorDeleted::class, function($event)
@@ -336,7 +353,7 @@ final class EventServiceProvider extends ServiceProvider
             $reservation = $repository->find($event->getReservationId());
             if(is_null($reservation) || ! $reservation instanceof SummitRoomReservation) return;
 
-            Mail::send(new BookableRoomReservationRefundAcceptedEmail($reservation));
+            Mail::queue(new BookableRoomReservationRefundAcceptedEmail($reservation));
 
         });
 
@@ -346,7 +363,7 @@ final class EventServiceProvider extends ServiceProvider
             $reservation = $repository->find($event->getReservationId());
             if(is_null($reservation) || ! $reservation instanceof SummitRoomReservation) return;
 
-            Mail::send(new BookableRoomReservationCreatedEmail($reservation));
+            Mail::queue(new BookableRoomReservationCreatedEmail($reservation));
 
         });
 
@@ -356,7 +373,7 @@ final class EventServiceProvider extends ServiceProvider
             $reservation = $repository->find($event->getReservationId());
             if(is_null($reservation) || ! $reservation instanceof SummitRoomReservation) return;
 
-            Mail::send(new BookableRoomReservationPaymentConfirmedEmail($reservation));
+            Mail::queue(new BookableRoomReservationPaymentConfirmedEmail($reservation));
         });
 
         Event::listen(\App\Events\RequestedBookableRoomReservationRefund::class, function($event)
@@ -365,8 +382,8 @@ final class EventServiceProvider extends ServiceProvider
             $reservation = $repository->find($event->getReservationId());
             if(is_null($reservation) || ! $reservation instanceof SummitRoomReservation) return;
 
-            Mail::send(new BookableRoomReservationRefundRequestedAdminEmail($reservation));
-            Mail::send(new BookableRoomReservationRefundRequestedOwnerEmail($reservation));
+            Mail::queue(new BookableRoomReservationRefundRequestedAdminEmail($reservation));
+            Mail::queue(new BookableRoomReservationRefundRequestedOwnerEmail($reservation));
         });
 
         Event::listen(\App\Events\BookableRoomReservationCanceled::class, function($event)
@@ -374,7 +391,163 @@ final class EventServiceProvider extends ServiceProvider
             $repository = EntityManager::getRepository(SummitRoomReservation::class);
             $reservation = $repository->find($event->getReservationId());
             if(is_null($reservation) || ! $reservation instanceof SummitRoomReservation) return;
-            Mail::send(new BookableRoomReservationCanceledEmail($reservation));
+            Mail::queue(new BookableRoomReservationCanceledEmail($reservation));
         });
+
+        // registration
+
+        Event::listen(SummitOrderCanceled::class, function($event){
+            if(!$event instanceof SummitOrderCanceled) return;
+
+            $repository = EntityManager::getRepository(SummitOrder::class);
+            $order = $repository->find($event->getOrderId());
+            if(is_null($order) || ! $order instanceof SummitOrder) return;
+
+            Log::debug(sprintf("EventServiceProvider::SummitOrderCanceled order number %s", $order->getNumber()));
+            /*
+             * removed for now
+             * if($event->shouldSendEmail())
+                Mail::queue(new SummitOrderCanceledEmail($order));
+            */
+            // compensate tickets types qty
+
+            foreach ($event->getTicketsToReturn() as $ticket_type_id => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitOrderCanceled: firing CompensateTickets ticket_type_id %s qty %s", $ticket_type_id, $qty));
+                CompensateTickets::dispatch($ticket_type_id, $qty);
+            }
+            // compensate promo codes usages
+
+            foreach ($event->getPromoCodesToReturn() as $code => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitOrderCanceled: firing CompensatePromoCodes code %s qty %s", $code, $qty));
+                CompensatePromoCodes::dispatch($order->getSummit(), $code, $qty);
+            }
+        });
+
+        Event::listen(OrderDeleted::class, function($event){
+            if(!$event instanceof OrderDeleted) return;
+
+            // compensate tickets types qty
+
+            Log::debug("EventServiceProvider::OrderDeleted");
+
+            $repository = EntityManager::getRepository(Summit::class);
+            $summit = $repository->find($event->getSummitId());
+            if(is_null($summit) || ! $summit instanceof Summit) return;
+
+            foreach ($event->getTicketsToReturn() as $ticket_type_id => $qty){
+                Log::debug(sprintf("EventServiceProvider::OrderDeleted: firing CompensateTickets ticket_type_id %s qty %s", $ticket_type_id, $qty));
+                CompensateTickets::dispatch($ticket_type_id, $qty);
+            }
+            // compensate promo codes usages
+
+            foreach ($event->getPromoCodesToReturn() as $code => $qty){
+                Log::debug(sprintf("EventServiceProvider::OrderDeleted: firing CompensatePromoCodes code %s qty %s", $code, $qty));
+                CompensatePromoCodes::dispatch($summit, $code, $qty);
+            }
+        });
+
+        Event::listen(PaymentSummitRegistrationOrderConfirmed::class, function($event){
+            if(!$event instanceof PaymentSummitRegistrationOrderConfirmed) return;
+            $order_id = $event->getOrderId();
+            Log::debug(sprintf("EventServiceProvider::PaymentSummitRegistrationOrderConfirmed: firing ProcessSummitOrderPaymentConfirmation for order id %s", $order_id));
+            ProcessSummitOrderPaymentConfirmation::dispatch($order_id);
+        });
+
+        Event::listen(NewMember::class, function($event){
+            if(!$event instanceof NewMember) return;
+            Log::debug(sprintf("EventServiceProvider::NewMember - firing NewMemberAssocSummitOrders member id %s", $event->getMemberId()));
+            NewMemberAssocSummitOrders::dispatchNow($event->getMemberId());
+        });
+
+        Event::Listen(RequestedSummitOrderRefund::class, function($event){
+
+            if(!$event instanceof RequestedSummitOrderRefund) return;
+
+            $repository = EntityManager::getRepository(SummitOrder::class);
+            $order = $repository->find($event->getOrderId());
+            if(is_null($order) || ! $order instanceof SummitOrder) return;
+
+            Log::debug(sprintf("EventServiceProvider::RequestedSummitOrderRefund: dispatching job ProcessOrderRefundRequest for order id %s", $event->getOrderId()));
+
+            Mail::queue(new \App\Mail\SummitOrderRefundRequestAdmin($order));
+            Mail::queue(new \App\Mail\SummitOrderRefundRequestOwner($order));
+
+            ProcessOrderRefundRequest::dispatch(
+                $event->getOrderId(),
+                $event->getDaysBeforeEventStarts()
+            );
+        });
+
+        Event::Listen(RequestedSummitAttendeeTicketRefund::class, function($event){
+            if(!$event instanceof RequestedSummitAttendeeTicketRefund) return;
+
+            $repository = EntityManager::getRepository(SummitAttendeeTicket::class);
+            $ticket = $repository->find($event->getTicketId());
+            if(is_null($ticket) || ! $ticket instanceof SummitAttendeeTicket) return;
+
+            Log::debug(sprintf("EventServiceProvider::RequestedSummitAttendeeTicketRefund: dispatching job ProcessOrderRefundRequest for ticket id %s", $event->getTicketId()));
+
+            Mail::queue(new \App\Mail\SummitTicketRefundRequestAdmin($ticket));
+            Mail::queue(new \App\Mail\SummitTicketRefundRequestOwner($ticket));
+
+            ProcessTicketRefundRequest::dispatch($event->getTicketId(), $event->getDaysBeforeEventStarts());
+        });
+
+        Event::listen(SummitAttendeeTicketRefundAccepted::class, function($event){
+            // send email to owner and compensate tickets types qty/ promo codes
+            if(!$event instanceof SummitAttendeeTicketRefundAccepted) return;
+
+            $repository = EntityManager::getRepository(SummitAttendeeTicket::class);
+            $ticket     = $repository->find($event->getTicketId());
+            if(is_null($ticket) || ! $ticket instanceof SummitAttendeeTicket) return;
+
+            $summit = $ticket->getOrder()->getSummit();
+            Log::debug(sprintf("EventServiceProvider::SummitAttendeeTicketRefundAccepted ticket number %s", $ticket->getNumber()));
+
+            Mail::queue(new \App\Mail\SummitTicketRefundAccepted($ticket));
+
+            // compensate tickets types qty
+
+            foreach ($event->getTicketsToReturn() as $ticket_type_id => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitAttendeeTicketRefundAccepted: firing CompensateTickets ticket_type_id %s qty %s", $ticket_type_id, $qty));
+                CompensateTickets::dispatch($ticket_type_id, $qty);
+            }
+            // compensate promo codes usages
+
+            foreach ($event->getPromoCodesToReturn() as $code => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitAttendeeTicketRefundAccepted: firing CompensatePromoCodes code %s qty %s", $code, $qty));
+                CompensatePromoCodes::dispatch($summit, $code, $qty);
+            }
+        });
+
+        Event::listen(SummitOrderRefundAccepted::class, function($event){
+            // send email to owner and compensate tickets types qty/ promo codes
+            if(!$event instanceof SummitOrderRefundAccepted) return;
+
+            $repository = EntityManager::getRepository(SummitOrder::class);
+            $order      = $repository->find($event->getOrderId());
+
+            if(is_null($order) || ! $order instanceof SummitOrder) return;
+
+            Log::debug(sprintf("EventServiceProvider::SummitOrderRefundAccepted order number %s", $order->getNumber()));
+
+            Mail::queue(new \App\Mail\SummitOrderRefundAccepted($order));
+
+            // compensate tickets types qty
+
+            foreach ($event->getTicketsToReturn() as $ticket_type_id => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitOrderRefundAccepted: firing CompensateTickets ticket_type_id %ss qty %s", $ticket_type_id, $qty));
+                CompensateTickets::dispatch($ticket_type_id, $qty);
+            }
+
+            // compensate promo codes usages
+
+            foreach ($event->getPromoCodesToReturn() as $code => $qty){
+                Log::debug(sprintf("EventServiceProvider::SummitOrderRefundAccepted: firing CompensatePromoCodes code %s qty %s", $code, $qty));
+                CompensatePromoCodes::dispatch($order->getSummit(), $code, $qty);
+            }
+
+        });
+
     }
 }

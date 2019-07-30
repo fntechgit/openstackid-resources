@@ -316,8 +316,13 @@ class SummitRoomReservation extends SilverstripeBaseModel
      * @throws ValidationException
      */
     public function setPaid():void{
+        if($this->status == self::PaidStatus){
+            Log::warning(sprintf("SummitRoomReservation %s is already Paid", $this->getId()));
+            return;
+        }
+
         if($this->status != self::ReservedStatus){
-            Log::warning("setting payed status to SummitRoomReservation %s with status %s", $this->getId(), $this->status);
+            Log::warning(sprintf("setting payed status to SummitRoomReservation %s with status %s", $this->getId(), $this->status));
         }
 
         $this->status = self::PaidStatus;
@@ -343,6 +348,13 @@ class SummitRoomReservation extends SilverstripeBaseModel
         if(empty($error)) return;
         $this->status = self::ErrorStatus;
         $this->last_error = $error;
+    }
+
+    /**
+     * @return null|string
+     */
+    public function getLastError():?string{
+        return $this->last_error;
     }
 
     /**

@@ -12,8 +12,8 @@
  * limitations under the License.
  **/
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\ORM\Mapping AS ORM;
 use models\utils\SilverstripeBaseModel;
+use Doctrine\ORM\Mapping AS ORM;
 /**
  * @ORM\Entity(repositoryClass="repositories\main\DoctrineCompanyRepository")
  * @ORM\Table(name="Company")
@@ -29,10 +29,43 @@ class Company extends SilverstripeBaseModel
     private $name;
 
     /**
+     * @ORM\Column(name="Description", type="string")
+     */
+    private $description;
+
+    /**
+     * @ORM\Column(name="Industry", type="string")
+     */
+    private $industry;
+
+    /**
+     * @ORM\Column(name="City", type="string")
+     */
+    private $city;
+
+    /**
+     * @ORM\Column(name="State", type="string")
+     */
+    private $state;
+
+    /**
+     * @ORM\Column(name="Country", type="string")
+     */
+    private $country;
+
+    /**
+     * @ORM\Column(name="URL", type="string")
+     */
+    private $url;
+
+    /**
      * @ORM\ManyToMany(targetEntity="models\summit\SummitEvent", mappedBy="sponsors")
      */
     private $sponsorships;
 
+    /**
+     * Company constructor.
+     */
     public function __construct()
     {
         parent::__construct();
@@ -40,19 +73,115 @@ class Company extends SilverstripeBaseModel
     }
 
     /**
-     * @return mixed
+     * @return string|null
      */
-    public function getName()
+    public function getName():?string
     {
         return $this->name;
     }
 
     /**
-     * @param mixed $name
+     * @param string $name
      */
-    public function setName($name)
+    public function setName(string $name)
     {
         $this->name = $name;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getDescription()
+    {
+        return $this->description;
+    }
+
+    /**
+     * @param string $description
+     */
+    public function setDescription($description): void
+    {
+        $this->description = $description;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getIndustry():?string
+    {
+        return $this->industry;
+    }
+
+    /**
+     * @param string $industry
+     */
+    public function setIndustry(string $industry): void
+    {
+        $this->industry = $industry;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getCity():?string
+    {
+        return $this->city;
+    }
+
+    /**
+     * @param string $city
+     */
+    public function setCity(string $city): void
+    {
+        $this->city = $city;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getState():?string
+    {
+        return $this->state;
+    }
+
+    /**
+     * @param string $state
+     */
+    public function setState(string $state): void
+    {
+        $this->state = $state;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getCountry():?string
+    {
+        return $this->country;
+    }
+
+    /**
+     * @param string $country
+     */
+    public function setCountry(string $country): void
+    {
+        $this->country = $country;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getUrl():?string
+    {
+        return $this->url;
+    }
+
+    /**
+     * @param string $url
+     */
+    public function setUrl(string $url): void
+    {
+        $this->url = $url;
     }
 
 }

@@ -19,5 +19,9 @@ use models\utils\IBaseRepository;
  */
 interface IGroupRepository extends IBaseRepository
 {
-
+    /**
+     * @param string $slug
+     * @return Group|null
+     */
+    public function getBySlug(string $slug):?Group;
 }

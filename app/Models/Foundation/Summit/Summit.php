@@ -1,5 +1,4 @@
 <?php namespace models\summit;
-
 /**
  * Copyright 2015 OpenStack Foundation
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +13,19 @@
  **/
 use App\Http\Utils\DateUtils;
 use App\Models\Foundation\Main\OrderableChilds;
+use App\Models\Foundation\Summit\AllowedCurrencies;
 use App\Models\Foundation\Summit\Events\RSVP\RSVPTemplate;
+use App\Models\Foundation\Summit\ISummitExternalScheduleFeedType;
+use App\Models\Foundation\Summit\Registration\ISummitExternalRegistrationFeedType;
 use App\Models\Foundation\Summit\SelectionPlan;
 use App\Models\Foundation\Summit\TrackTagGroup;
 use App\Models\Foundation\Summit\TrackTagGroupAllowedTag;
 use App\Models\Utils\TimeZoneEntity;
-use App\Services\Apis\ExternalScheduleFeeds\IExternalScheduleFeedFactory;
 use Cocur\Slugify\Slugify;
 use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Criteria;
+use Illuminate\Support\Facades\Config;
 use models\exceptions\ValidationException;
 use models\main\Company;
 use models\main\File;
@@ -90,6 +92,24 @@ class Summit extends SilverstripeBaseModel
     private $end_date;
 
     /**
+     * @ORM\Column(name="ReAssignTicketTillDate", type="datetime")
+     * @var \DateTime
+     */
+    private $reassign_ticket_till_date;
+
+    /**
+     * @ORM\Column(name="RegistrationDisclaimerContent", type="string")
+     * @var string
+     */
+    private $registration_disclaimer_content;
+
+    /**
+     * @ORM\Column(name="RegistrationDisclaimerMandatory", type="boolean")
+     * @var bool
+     */
+    private $registration_disclaimer_mandatory;
+
+    /**
      * @ORM\Column(name="RegistrationBeginDate", type="datetime")
      * @var \DateTime
      */
@@ -119,6 +139,7 @@ class Summit extends SilverstripeBaseModel
      */
     private $external_summit_id;
 
+
     /**
      * @ORM\Column(name="ScheduleDefaultStartDate", type="datetime")
      * @var \DateTime
@@ -126,11 +147,11 @@ class Summit extends SilverstripeBaseModel
     private $schedule_default_start_date;
 
     /**
-     * @ORM\ManyToOne(targetEntity="SummitType", fetch="EXTRA_LAZY")
+     * @ORM\ManyToOne(targetEntity="SummitType")
      * @ORM\JoinColumn(name="TypeID", referencedColumnName="ID")
      * @var SummitType
      */
-    private $type = null;
+    private $type;
 
     /**
      * @ORM\Column(name="StartShowingVenuesDate", type="datetime")
@@ -192,12 +213,19 @@ class Summit extends SilverstripeBaseModel
     private $meeting_room_booking_max_allowed;
 
     /**
-     * @ORM\OneToMany(targetEntity="SummitAbstractLocation", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\Column(name="RegistrationReminderEmailsDaysInterval", type="integer", nullable=true)
+     * @var int
+     */
+    private $registration_reminder_email_days_interval;
+
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitAbstractLocation", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      */
     private $locations;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\SummitBookableVenueRoomAttributeType", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="SummitBookableVenueRoomAttributeType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      */
     private $meeting_booking_room_allowed_attributes;
 
@@ -214,38 +242,92 @@ class Summit extends SilverstripeBaseModel
     private $end_allow_booking_date;
 
     /**
-     * @ORM\OneToMany(targetEntity="SummitEvent", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\Column(name="RegistrationSlugPrefix", type="string")
+     * @var string
+     */
+    private $registration_slug_prefix;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitEvent", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      */
     private $events;
 
     /**
-     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\Events\RSVP\RSVPTemplate", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\Events\RSVP\RSVPTemplate", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      */
     private $rsvp_templates;
 
     /**
-     * @ORM\OneToMany(targetEntity="SummitWIFIConnection", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="SummitWIFIConnection", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var SummitWIFIConnection[]
      */
     private $wifi_connections;
 
     /**
-     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\TrackTagGroup", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\TrackTagGroup", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var TrackTagGroup[]
      */
     private $track_tag_groups;
 
     /**
-     * @ORM\OneToMany(targetEntity="SummitRegistrationPromoCode", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="SummitRegistrationPromoCode", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var SummitRegistrationPromoCode[]
      */
     private $promo_codes;
 
     /**
-     * @ORM\OneToMany(targetEntity="PresentationSpeakerSummitAssistanceConfirmationRequest", mappedBy="summit", fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="PresentationSpeakerSummitAssistanceConfirmationRequest", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var PresentationSpeakerSummitAssistanceConfirmationRequest[]
      */
     private $speaker_assistances;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitAccessLevelType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitAccessLevelType[]
+     */
+    private $badge_access_level_types;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitBadgeFeatureType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitBadgeFeatureType[]
+     */
+    private $badge_features_types;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitBadgeType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitBadgeType[]
+     */
+    private $badge_types;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitOrder", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitOrder[]
+     */
+    private $orders;
+
+    /**
+     * @ORM\OneToMany(targetEntity="Sponsor", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var Sponsor[]
+     */
+    private $summit_sponsors;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitTaxType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitTaxType[]
+     */
+    private $tax_types;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitOrderExtraQuestionType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitOrderExtraQuestionType[]
+     */
+    private $order_extra_questions;
+
+    /**
+     * @ORM\OneToMany(targetEntity="SummitRefundPolicyType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitRefundPolicyType[]
+     */
+    private $refund_policies;
 
     /**
      * @ORM\ManyToOne(targetEntity="models\main\File", cascade={"persist"})
@@ -273,36 +355,49 @@ class Summit extends SilverstripeBaseModel
     private $api_feed_key;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\SummitEventType", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\Column(name="ExternalRegistrationFeedType", type="string")
+     * @var string
+     */
+    private $external_registration_feed_type;
+
+    /**
+     * @ORM\Column(name="ExternalRegistrationFeedApiKey", type="string")
+     * @var string
+     */
+    private $external_registration_feed_api_key;
+
+    /**
+     * @ORM\OneToMany(targetEntity="models\summit\SummitEventType", mappedBy="summit",  cascade={"persist","remove"}, orphanRemoval=true)
      */
     private $event_types;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\PresentationCategory", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="models\summit\PresentationCategory", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var PresentationCategory[]
      */
     private $presentation_categories;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\SummitAttendee", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="models\summit\SummitAttendee", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var SummitAttendee[]
      */
     private $attendees;
 
     /**
-     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\SelectionPlan", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="App\Models\Foundation\Summit\SelectionPlan", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var SelectionPlan[]
      */
     private $selection_plans;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\PresentationCategoryGroup", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="models\summit\PresentationCategoryGroup", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
      * @var PresentationCategoryGroup[]
      */
     private $category_groups;
 
     /**
-     * @ORM\OneToMany(targetEntity="models\summit\SummitTicketType", mappedBy="summit", cascade={"persist"}, orphanRemoval=true, fetch="EXTRA_LAZY")
+     * @ORM\OneToMany(targetEntity="models\summit\SummitTicketType", mappedBy="summit", cascade={"persist","remove"}, orphanRemoval=true)
+     * var SummitTicketType[]
      */
     private $ticket_types;
 
@@ -363,7 +458,7 @@ class Summit extends SilverstripeBaseModel
     }
 
     /**
-     * @return mixed
+     * @return string
      */
     public function getName()
     {
@@ -397,7 +492,7 @@ class Summit extends SilverstripeBaseModel
     /**
      * @return string
      */
-    public function getExternalSummitId()
+    public function getExternalSummitId():?string
     {
         return $this->external_summit_id;
     }
@@ -431,9 +526,9 @@ class Summit extends SilverstripeBaseModel
     }
 
     /**
-     * @return mixed
+     * @return DateTime|null
      */
-    public function getBeginDate()
+    public function getBeginDate():?DateTime
     {
         return $this->begin_date;
     }
@@ -455,9 +550,9 @@ class Summit extends SilverstripeBaseModel
     }
 
     /**
-     * @return \DateTime
+     * @return \DateTime|null
      */
-    public function getEndDate()
+    public function getEndDate():?\DateTime
     {
         return $this->end_date;
     }
@@ -504,6 +599,10 @@ class Summit extends SilverstripeBaseModel
 
     public function clearStartShowingVenuesDate(){
         $this->start_showing_venues_date = null;
+    }
+
+    public function clearReassignTicketTillDate(){
+        $this->reassign_ticket_till_date = null;
     }
 
     /**
@@ -592,7 +691,6 @@ class Summit extends SilverstripeBaseModel
         $this->max_submission_allowed_per_user = self::DefaultMaxSubmissionAllowedPerUser;
         $this->meeting_room_booking_slot_length = 60;
         $this->meeting_room_booking_max_allowed = 2;
-
         $this->locations = new ArrayCollection;
         $this->events = new ArrayCollection;
         $this->event_types = new ArrayCollection;
@@ -613,20 +711,20 @@ class Summit extends SilverstripeBaseModel
         $this->notifications = new ArrayCollection;
         $this->selection_plans = new ArrayCollection;
         $this->meeting_booking_room_allowed_attributes = new ArrayCollection();
-        $this->mark_as_deleted = false;
-    }
-
-    /**
-     * @var bool
-     */
-    private $mark_as_deleted;
-
-    public function markAsDeleted(){
-        $this->mark_as_deleted = true;
-    }
-
-    public function isDeleting():bool{
-        return is_null($this->mark_as_deleted)? false : $this->mark_as_deleted;
+        $this->badge_access_level_types = new ArrayCollection();
+        $this->tax_types = new ArrayCollection();
+        $this->badge_features_types = new ArrayCollection();
+        $this->badge_types = new ArrayCollection();
+        $this->summit_sponsors =  new ArrayCollection();
+        $this->refund_policies = new ArrayCollection();
+        $this->order_extra_questions = new ArrayCollection();
+        $this->orders = new ArrayCollection();
+        $this->registration_disclaimer_mandatory = false;
+        $this->reassign_ticket_till_date = null;
+        $this->begin_date = null;
+        $this->end_date = null;
+        $this->registration_begin_date = null;
+        $this->registration_end_date = null;
     }
 
     /**
@@ -649,6 +747,26 @@ class Summit extends SilverstripeBaseModel
         return $this->convertDateFromUTC2TimeZone($this->begin_date);
     }
 
+
+    /**
+     * @return DateTime|null
+     */
+    public function getLocalBeginAllowBookingDate():?DateTime
+    {
+        if(is_null($this->begin_allow_booking_date)) return null;
+        return $this->convertDateFromUTC2TimeZone($this->begin_allow_booking_date);
+    }
+
+    /**
+     * @return DateTime|null
+     */
+    public function getLocalEndAllowBookingDate():?DateTime
+    {
+        if(is_null($this->end_allow_booking_date)) return null;
+        return $this->convertDateFromUTC2TimeZone($this->end_allow_booking_date);
+    }
+
+
     /**
      * @return DateTime
      */
@@ -663,9 +781,10 @@ class Summit extends SilverstripeBaseModel
      */
     public function addLocation(SummitAbstractLocation $location)
     {
+        if($this->locations->contains($location)) return;
+        $location->setOrder($this->getLocationMaxOrder() + 1);
         $this->locations->add($location);
         $location->setSummit($this);
-        $location->setOrder($this->getLocationMaxOrder() + 1);
         return $this;
     }
 
@@ -859,7 +978,7 @@ class Summit extends SilverstripeBaseModel
     }
 
     /**
-     * @return SummitEventType[]
+     * @return ArrayCollection
      */
     public function getEventTypes()
     {
@@ -914,7 +1033,7 @@ class Summit extends SilverstripeBaseModel
     }
 
     /**
-     * @return SummitTicketType[]
+     * @return ArrayCollection
      */
     public function getTicketTypes()
     {
@@ -1155,9 +1274,9 @@ class Summit extends SilverstripeBaseModel
 
     /**
      * @param int $member_id
-     * @return SummitAttendee
+     * @return SummitAttendee|null
      */
-    public function getAttendeeByMemberId($member_id)
+    public function getAttendeeByMemberId($member_id):?SummitAttendee
     {
         $builder = $this->createQueryBuilder();
         $members = $builder
@@ -1176,22 +1295,44 @@ class Summit extends SilverstripeBaseModel
      * @param Member $member
      * @return SummitAttendee|null
      */
-    public function getAttendeeByMember(Member $member)
+    public function getAttendeeByMember(Member $member):?SummitAttendee
     {
         return $this->getAttendeeByMemberId($member->getId());
     }
 
     /**
-     * @param int $attendee_id
-     * @return SummitAttendee
+     * @param SummitAttendee $attendee
      */
-    public function getAttendeeById($attendee_id)
+    public function addAttendee(SummitAttendee $attendee){
+        if($this->attendees->contains($attendee)) return;
+        $this->attendees->add($attendee);
+        $attendee->setSummit($this);
+    }
+
+    /**
+     * @param int $attendee_id
+     * @return SummitAttendee|null
+     */
+    public function getAttendeeById($attendee_id):?SummitAttendee
     {
         $criteria = Criteria::create();
         $criteria->where(Criteria::expr()->eq('id', intval($attendee_id)));
         $attendee = $this->attendees->matching($criteria)->first();
         return $attendee === false ? null : $attendee;
     }
+
+    /**
+     * @param string $email
+     * @return SummitAttendee|null
+     */
+    public function getAttendeeByEmail(string $email):?SummitAttendee
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('email', strtolower(trim($email))));
+        $attendee = $this->attendees->matching($criteria)->first();
+        return $attendee === false ? null : $attendee;
+    }
+
 
     /**
      * @ORM\OneToMany(targetEntity="models\summit\SummitEntityEvent", mappedBy="summit", cascade={"persist"}, orphanRemoval=true)
@@ -1226,6 +1367,20 @@ class Summit extends SilverstripeBaseModel
 
         return $start_date >= $summit_start_date && $start_date <= $summit_end_date &&
             $end_date <= $summit_end_date && $end_date >= $start_date;
+    }
+
+    /**
+     * @param DateTime $start_date
+     * @param DateTime $end_date
+     * @return bool
+     */
+    public function isTimeFrameOnBookingPeriod(DateTime $start_date, DateTime $end_date):bool
+    {
+        if(is_null($this->begin_allow_booking_date)) return false;
+        if(is_null($this->end_allow_booking_date)) return false;
+
+        return $start_date >= $this->convertDateFromUTC2TimeZone($this->begin_allow_booking_date) && $start_date <= $this->convertDateFromUTC2TimeZone($this->end_allow_booking_date) &&
+            $end_date <= $this->convertDateFromUTC2TimeZone($this->end_allow_booking_date) && $end_date >= $start_date;
     }
 
     /**
@@ -1386,7 +1541,7 @@ class Summit extends SilverstripeBaseModel
     /**
      * @return Company[]
      */
-    public function getSponsors()
+    public function getEventSponsors()
     {
         $builder = $this->createQueryBuilder();
         return $builder
@@ -1515,14 +1670,53 @@ SQL;
     }
 
     /**
+     * @param string $suffix
      * @return string
      */
-    public function getSlug()
+    public function getSlug($suffix='-summit')
     {
-        $res = "openstack-" . $this->name . '-';
-        $res .= $this->begin_date->format('Y') . '-summit';
-        $res = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '', $res));
-        return $res;
+        $res =  $this->name;
+
+        if(!is_null($this->begin_date)) {
+            $res .= $this->begin_date->format('Y') . $suffix;
+        }
+
+        return strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '', $res));
+    }
+
+
+    public function generateRegistrationSlugPrefix():void{
+        if(is_null($this->registration_slug_prefix)){
+            $this->registration_slug_prefix = $this->getSlug("");
+        }
+    }
+    /**
+     * @return string
+     */
+    public function getRegistrationSlugPrefix():string{
+        $this->generateRegistrationSlugPrefix();
+        return $this->registration_slug_prefix;
+    }
+
+    /**
+     * @return string
+     */
+    public function getOrderQRPrefix():string{
+        return strtoupper('ORDER_'.$this->getRegistrationSlugPrefix());
+    }
+
+    /**
+     * @return string
+     */
+    public function getTicketQRPrefix():string{
+        return strtoupper('TICKET_'.$this->getRegistrationSlugPrefix());
+    }
+
+    /**
+     * @return string
+     */
+    public function getBadgeQRPrefix():string{
+        return strtoupper('BADGE_'.$this->getRegistrationSlugPrefix());
     }
 
     /**
@@ -1577,6 +1771,38 @@ SQL;
     public function getAttendeesCount()
     {
         return $this->attendees->count();
+    }
+
+
+    /**
+     * @return int
+     */
+    public function getPaidTicketsCount():int{
+        return $this->geTicketsCountByStatus(IOrderConstants::PaidStatus);
+    }
+    /**
+     * @param string $status
+     * @return int
+     */
+    public function geTicketsCountByStatus(string $status):int
+    {
+        try {
+            $sql = <<<SQL
+           SELECT count(SummitAttendeeTicket.ID) AS TICKET_COUNT from SummitAttendeeTicket
+INNER JOIN SummitOrder ON SummitOrder.ID = SummitAttendeeTicket.OrderID
+WHERE SummitOrder.SummitID = :summit_id AND SummitAttendeeTicket.Status = ':status'
+SQL;
+            $stmt = $this->prepareRawSQL($sql);
+            $stmt->execute([
+                'summit_id' => $this->id,
+                'status' => $status
+            ]);
+            $res = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            return count($res) > 0 ? $res[0] : 0;
+        } catch (\Exception $ex) {
+
+        }
+        return 0;
     }
 
     /**
@@ -1812,7 +2038,36 @@ SQL;
         return $this;
     }
 
+    /**
+     * @return int
+     */
+    public function getTicketTypesCount():int{
+        return $this->ticket_types->count();
+    }
 
+    /**
+     * @return bool
+     */
+    public function hasTicketTypes():bool {
+        return $this->getTicketTypesCount() > 0;
+    }
+
+
+    /**
+     * @return null|string
+     * @throws ValidationException
+     */
+    public function getDefaultTicketTypeCurrency():?string{
+        $default_currency = null;
+        foreach ($this->ticket_types as $ticket_type){
+            $ticket_type_currency = $ticket_type->getCurrency();
+            if(empty($ticket_type_currency)) continue;
+            if(empty($default_currency)) { $default_currency = $ticket_type_currency; continue;}
+            if($ticket_type_currency != $default_currency)
+                throw new ValidationException(sprintf("all ticket types for summit %s should have same currency", $this->getId()));
+        }
+        return $default_currency;
+    }
     /**
      * @param SummitTicketType $ticket_type
      * @return $this
@@ -2108,9 +2363,13 @@ SQL;
     /**
      * @return DateTime
      */
-    public function getRegistrationBeginDate()
+    public function getRegistrationBeginDate():?DateTime
     {
         return $this->registration_begin_date;
+    }
+
+    public function isRegistrationPeriodOpen():bool {
+        return true;
     }
 
     /**
@@ -2131,7 +2390,7 @@ SQL;
     /**
      * @return DateTime
      */
-    public function getRegistrationEndDate()
+    public function getRegistrationEndDate():?DateTime
     {
         return $this->registration_end_date;
     }
@@ -2348,7 +2607,6 @@ SQL;
     const STAGE_OPEN = 0;
     const STAGE_FINISHED = 1;
 
-
     /**
      * @param Tag $tag
      * @return TrackTagGroup|null
@@ -2482,9 +2740,9 @@ SQL;
     public function addTrackTagGroup(TrackTagGroup $track_tag_group)
     {
         if($this->track_tag_groups->contains($track_tag_group)) return $this;
+        $track_tag_group->setOrder($this->getTrackTagGroupMaxOrder() + 1);
         $this->track_tag_groups->add($track_tag_group);
         $track_tag_group->setSummit($this);
-        $track_tag_group->setOrder($this->getTrackTagGroupMaxOrder() + 1);
         return $this;
     }
 
@@ -2706,11 +2964,7 @@ SQL;
         return null;
     }
 
-    static $valid_feed_types = [
-        IExternalScheduleFeedFactory::NoneType,
-        IExternalScheduleFeedFactory::SchedType,
-        IExternalScheduleFeedFactory::VanderpoelType
-    ];
+
     /**
      * @return string|null
      */
@@ -2725,7 +2979,7 @@ SQL;
      */
     public function setApiFeedType(string $api_feed_type): void
     {
-        if(!empty($api_feed_type) && !in_array($api_feed_type, self::$valid_feed_types))
+        if(!empty($api_feed_type) && !in_array($api_feed_type, ISummitExternalScheduleFeedType::ValidFeedTypes))
             throw new ValidationException(sprintf("feed type %s is not valid!", $api_feed_type));
         $this->api_feed_type = $api_feed_type;
     }
@@ -2775,7 +3029,221 @@ SQL;
      */
     public function setBeginAllowBookingDate(DateTime $begin_allow_booking_date): void
     {
-        $this->begin_allow_booking_date = $begin_allow_booking_date;
+        $this->begin_allow_booking_date =  $this->convertDateFromTimeZone2UTC($begin_allow_booking_date);
+    }
+
+    /*
+     * @return SummitAccessLevelType[]
+     */
+    public function getBadgeAccessLevelTypes(): array
+    {
+        return $this->badge_access_level_types;
+    }
+
+    /**
+     * @param SummitAccessLevelType $access_level
+     */
+    public function addBadgeAccessLevelType(SummitAccessLevelType $access_level):void{
+        if($this->badge_access_level_types->contains($access_level)) return;
+        $this->badge_access_level_types->add($access_level);
+        $access_level->setSummit($this);
+    }
+
+    /**
+     * @param SummitAccessLevelType $access_level
+     */
+    public function removeBadgeAccessLevelType(SummitAccessLevelType $access_level):void{
+        if(!$this->badge_access_level_types->contains($access_level)) return;
+        $this->badge_access_level_types->removeElement($access_level);
+        $access_level->clearSummit();
+    }
+
+    /**
+     * @param int $levelId
+     * @return SummitAccessLevelType|null
+     */
+    public function getBadgeAccessLevelTypeById(int $levelId):?SummitAccessLevelType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($levelId)));
+        $attr = $this->badge_access_level_types->matching($criteria)->first();
+        return $attr === false ? null : $attr;
+    }
+
+    /**
+     * @param string $level_name
+     * @return SummitAccessLevelType|null
+     */
+    public function getBadgeAccessLevelTypeByName(string $level_name):?SummitAccessLevelType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($level_name)));
+        $attr = $this->badge_access_level_types->matching($criteria)->first();
+        return $attr === false ? null : $attr;
+    }
+
+    /**
+     * @return SummitTaxType[]
+     */
+    public function getTaxTypes()
+    {
+        return $this->tax_types;
+    }
+
+    /**
+     * @param SummitTaxType $tax_type
+     */
+    public function addTaxType(SummitTaxType $tax_type):void{
+        if($this->tax_types->contains($tax_type)) return;
+        $this->tax_types->add($tax_type);
+        $tax_type->setSummit($this);
+    }
+
+    /**
+     * @param SummitTaxType $tax_type
+     */
+    public function removeTaxType(SummitTaxType $tax_type):void{
+        if(!$this->tax_types->contains($tax_type)) return;
+        $this->tax_types->removeElement($tax_type);
+        $tax_type->clearSummit();
+    }
+
+    /**
+     * @param int $tax_id
+     * @return SummitTaxType|null
+     */
+    public function getTaxTypeById(int $tax_id):?SummitTaxType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($tax_id)));
+        $attr = $this->tax_types->matching($criteria)->first();
+        return $attr === false ? null : $attr;
+    }
+
+    /**
+     * @param string $tax_name
+     * @return SummitTaxType|null
+     */
+    public function getTaxTypeByName(string $tax_name):?SummitTaxType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($tax_name)));
+        $attr = $this->tax_types->matching($criteria)->first();
+        return $attr === false ? null : $attr;
+    }
+
+    /**
+     * @return SummitBadgeFeatureType[]|ArrayCollection
+     */
+    public function getBadgeFeaturesTypes()
+    {
+        return $this->badge_features_types;
+    }
+
+    /**
+     * @param SummitBadgeFeatureType $feature_type
+     */
+    public function addFeatureType(SummitBadgeFeatureType $feature_type):void{
+        if($this->badge_features_types->contains($feature_type)) return;
+        $this->badge_features_types->add($feature_type);
+        $feature_type->setSummit($this);
+    }
+
+    /**
+     * @param SummitBadgeFeatureType $feature_type
+     */
+    public function removeFeatureType(SummitBadgeFeatureType $feature_type):void{
+        if(!$this->badge_features_types->contains($feature_type)) return;
+        $this->badge_features_types->removeElement($feature_type);
+        $feature_type->clearSummit();
+    }
+
+
+    /**
+     * @param int $feature_id
+     * @return SummitBadgeFeatureType|null
+     */
+    public function getFeatureTypeById(int $feature_id):?SummitBadgeFeatureType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($feature_id)));
+        $feature = $this->badge_features_types->matching($criteria)->first();
+        return $feature === false ? null : $feature;
+    }
+
+    /**
+     * @param string $feature_name
+     * @return SummitBadgeFeatureType|null
+     */
+    public function getFeatureTypeByName(string $feature_name):?SummitBadgeFeatureType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($feature_name)));
+        $feature = $this->badge_features_types->matching($criteria)->first();
+        return $feature === false ? null : $feature;
+    }
+
+    /**
+     * @return SummitBadgeType[]
+     */
+    public function getBadgeTypes(): array
+    {
+        return $this->badge_types;
+    }
+
+    /**
+     * @param SummitBadgeType $badge_type
+     */
+    public function addBadgeType(SummitBadgeType $badge_type){
+        if($this->badge_types->contains($badge_type)) return;
+        $this->badge_types->add($badge_type);
+        $badge_type->setSummit($this);
+    }
+
+    /**
+     * @param SummitBadgeType $badge_type
+     */
+    public function removeBadgeType(SummitBadgeType $badge_type):void{
+        if(!$this->badge_types->contains($badge_type)) return;
+        $this->badge_types->removeElement($badge_type);
+        $badge_type->clearSummit();
+    }
+
+    /**
+     * @param int $badge_type_id
+     * @return SummitBadgeType|null
+     */
+    public function getBadgeTypeById(int $badge_type_id): ?SummitBadgeType
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($badge_type_id)));
+        $badge_type = $this->badge_types->matching($criteria)->first();
+        return $badge_type === false ? null : $badge_type;
+    }
+
+    /**
+     * @param string $badge_type_name
+     * @return SummitBadgeType|null
+     */
+    public function getBadgeTypeByName(string $badge_type_name): ?SummitBadgeType
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($badge_type_name)));
+        $badge_type = $this->badge_types->matching($criteria)->first();
+        return $badge_type === false ? null : $badge_type;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasDefaultBadgeType():bool {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('default', true));
+        return $this->badge_types->matching($criteria)->count() > 0;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getDefaultBadgeType():?SummitBadgeType {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('default', true));
+        $badge_type = $this->badge_types->matching($criteria)->first();
+        return $badge_type === false ? null : $badge_type;
     }
 
     /**
@@ -2791,7 +3259,7 @@ SQL;
      */
     public function setEndAllowBookingDate(DateTime $end_allow_booking_date): void
     {
-        $this->end_allow_booking_date = $end_allow_booking_date;
+        $this->end_allow_booking_date = $this->convertDateFromTimeZone2UTC($end_allow_booking_date);
     }
 
     public function clearAllowBookingDates():void{
@@ -2801,10 +3269,11 @@ SQL;
     /**
      * @return bool
      */
-    public function isBookingPeriodOpen():bool{
+    public function isBookingPeriodOpen():bool
+    {
         $now_utc = new \DateTime('now', new \DateTimeZone('UTC'));
-        if(!is_null($this->begin_allow_booking_date) && !is_null($this->end_allow_booking_date)){
-            return $now_utc >= $this->begin_allow_booking_date  && $now_utc <= $this->end_allow_booking_date;
+        if (!is_null($this->begin_allow_booking_date) && !is_null($this->end_allow_booking_date)) {
+            return $now_utc >= $this->begin_allow_booking_date && $now_utc <= $this->end_allow_booking_date;
         }
 
         return false;
@@ -2813,11 +3282,492 @@ SQL;
     /**
      * @return string
      */
-    public function getLogoUrl():?string {
+    public function getLogoUrl():?string
+    {
         $logoUrl = null;
-        if($this->hasLogo() && $logo = $this->getLogo()){
-            $logoUrl =  $logo->getUrl();
+        if ($this->hasLogo() && $logo = $this->getLogo()) {
+            $logoUrl = $logo->getUrl();
         }
         return $logoUrl;
     }
+
+    public function getReassignTicketTillDate(): ?DateTime
+    {
+        return $this->reassign_ticket_till_date;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasReassignTicketLimit():bool {
+        return !is_null($this->reassign_ticket_till_date);
+    }
+
+    /**
+     * @param DateTime $reassign_ticket_till_date
+     */
+    public function setReassignTicketTillDate(DateTime $reassign_ticket_till_date): void
+    {
+        $this->reassign_ticket_till_date = $reassign_ticket_till_date;
+    }
+
+    /**
+     * @return string
+     */
+    public function getRegistrationDisclaimerContent(): ?string
+    {
+        return $this->registration_disclaimer_content;
+    }
+
+    /**
+     * @param string $registration_disclaimer_content
+     */
+    public function setRegistrationDisclaimerContent(string $registration_disclaimer_content): void
+    {
+        $this->registration_disclaimer_content = $registration_disclaimer_content;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isRegistrationDisclaimerMandatory(): bool
+    {
+        return $this->registration_disclaimer_mandatory;
+    }
+
+    /**
+     * @param bool $registration_disclaimer_mandatory
+     */
+    public function setRegistrationDisclaimerMandatory(bool $registration_disclaimer_mandatory): void
+    {
+        $this->registration_disclaimer_mandatory = $registration_disclaimer_mandatory;
+    }
+
+    /**
+     * @return array
+     */
+    public function getSupportedCurrencies():array{
+        return [AllowedCurrencies::USD, AllowedCurrencies::GBP, AllowedCurrencies::EUR];
+    }
+
+    /**
+     * @return Sponsor[]
+     */
+    public function getSummitSponsors(){
+        return $this->summit_sponsors;
+    }
+
+    /**
+     * @param Company $company
+     * @return Sponsor|null
+     */
+    public function getSummitSponsorByCompany(Company $company):?Sponsor{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('company', $company));
+        $sponsor = $this->summit_sponsors->matching($criteria)->first();
+        return $sponsor === false ? null : $sponsor;
+    }
+
+    /**
+     * @param string $badge_type_name
+     * @return Sponsor|null
+     */
+    public function getSummitSponsorById(int $id): ?Sponsor
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($id)));
+        $sponsor = $this->summit_sponsors->matching($criteria)->first();
+        return $sponsor === false ? null : $sponsor;
+    }
+
+    /**
+     * @param Sponsor $sponsor
+     */
+    public function addSummitSponsor(Sponsor $sponsor){
+        if($this->summit_sponsors->contains($sponsor)) return;
+        $sponsor->setOrder($this->getSummitSponsorMaxOrder()+1);
+        $this->summit_sponsors->add($sponsor);
+        $sponsor->setSummit($this);
+
+    }
+
+    /**
+     * @return int
+     */
+    private function getSummitSponsorMaxOrder(){
+        $criteria = Criteria::create();
+        $criteria->orderBy(['order' => 'DESC']);
+        $sponsor = $this->summit_sponsors->matching($criteria)->first();
+        $res = $sponsor === false ? 0 : $sponsor->getOrder();
+        return is_null($res) ? 0 : $res;
+    }
+
+
+    /**
+     * @param Sponsor $sponsor
+     */
+    public function removeSummitSponsor(Sponsor $sponsor){
+        if(!$this->summit_sponsors->contains($sponsor)) return;
+        $this->summit_sponsors->removeElement($sponsor);
+        $sponsor->clearSummit();
+    }
+
+    /**
+     * @return SummitRefundPolicyType[]
+     */
+    public function getRefundPolicies(): array
+    {
+        return $this->refund_policies;
+    }
+
+    /**
+     * @param SummitRefundPolicyType $policy
+     */
+    public function addRefundPolicy(SummitRefundPolicyType $policy){
+        if($this->refund_policies->contains($policy)) return;
+        $this->refund_policies->add($policy);
+        $policy->setSummit($this);
+    }
+
+    /**
+     * @param SummitRefundPolicyType $policy
+     */
+    public function removeRefundPolicy(SummitRefundPolicyType $policy){
+        if(!$this->refund_policies->contains($policy)) return;
+        $this->refund_policies->removeElement($policy);
+        $policy->clearSummit();
+    }
+
+    /**
+     * @param string $policy_name
+     * @return SummitBadgeType|null
+     */
+    public function getRefundPolicyByName(string $policy_name): ?SummitRefundPolicyType
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($policy_name)));
+        $policy = $this->refund_policies->matching($criteria)->first();
+        return $policy === false ? null : $policy;
+    }
+
+    /**
+     * @param int $until_x_days_before_event_starts
+     * @return SummitBadgeType|null
+     */
+    public function getRefundPolicyByDays(int $until_x_days_before_event_starts): ?SummitRefundPolicyType
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('until_x_days_before_event_starts', intval($until_x_days_before_event_starts)));
+        $policy = $this->refund_policies->matching($criteria)->first();
+        return $policy === false ? null : $policy;
+    }
+
+    /**
+     * @param int $performed_n_days_before_event_starts
+     * @return SummitRefundPolicyType|null
+     */
+    public function getRefundPolicyForRefundRequest(int $performed_n_days_before_event_starts):?SummitRefundPolicyType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->lte('until_x_days_before_event_starts', intval($performed_n_days_before_event_starts)));
+        $criteria->orderBy(['until_x_days_before_event_starts' => 'DESC']);
+        $policy = $this->refund_policies->matching($criteria)->first();
+        return $policy === false ? null : $policy;
+    }
+
+    /**
+     * @param int $id
+     * @return SummitBadgeType|null
+     */
+    public function getRefundPolicyById(int $id): ?SummitRefundPolicyType
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($id)));
+        $policy = $this->refund_policies->matching($criteria)->first();
+        return $policy === false ? null : $policy;
+    }
+
+    /**
+     * @return SummitOrderExtraQuestionType[]
+     */
+    public function getOrderExtraQuestions()
+    {
+        return $this->order_extra_questions;
+    }
+
+    /**
+     * @param string $usage
+     * @return ArrayCollection|\Doctrine\Common\Collections\Collection
+     */
+    public function getMandatoryOrderExtraQuestionsByUsage(string $usage){
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('mandatory', true));
+        $criteria->andWhere(Criteria::expr()->in('usage', [$usage, SummitOrderExtraQuestionTypeConstants::BothQuestionUsage]));
+        return $this->order_extra_questions->matching($criteria);
+    }
+
+    /**
+     * @param string $usage
+     * @return ArrayCollection|\Doctrine\Common\Collections\Collection
+     */
+    public function getOrderExtraQuestionsByUsage(string $usage){
+        $criteria = Criteria::create();
+        $criteria->andWhere(Criteria::expr()->in('usage', [$usage, SummitOrderExtraQuestionTypeConstants::BothQuestionUsage]));
+        return $this->order_extra_questions->matching($criteria);
+    }
+
+    /**
+     * @param int $question_id
+     * @return SummitOrderExtraQuestionType|null
+     */
+    public function getOrderExtraQuestionById(int $question_id):?SummitOrderExtraQuestionType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', $question_id));
+        $question = $this->order_extra_questions->matching($criteria)->first();
+        return $question === false ? null : $question;
+    }
+
+    /**
+     * @param string $name
+     * @return SummitOrderExtraQuestionType|null
+     */
+    public function getOrderExtraQuestionByName(string $name):?SummitOrderExtraQuestionType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('name', trim($name)));
+        $question = $this->order_extra_questions->matching($criteria)->first();
+        return $question === false ? null : $question;
+    }
+
+    /**
+     * @param string $label
+     * @return SummitOrderExtraQuestionType|null
+     */
+    public function getOrderExtraQuestionByLabel(string $label):?SummitOrderExtraQuestionType{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('label', trim($label)));
+        $question = $this->order_extra_questions->matching($criteria)->first();
+        return $question === false ? null : $question;
+    }
+
+    /**
+     * @return int
+     */
+    private function getOrderExtraQuestionMaxOrder():int{
+        $criteria = Criteria::create();
+        $criteria->orderBy(['order' => 'DESC']);
+        $question = $this->order_extra_questions->matching($criteria)->first();
+        return $question === false ? 0 : $question->getOrder();
+    }
+
+    /**
+     * @param SummitOrderExtraQuestionType $extra_question
+     */
+    public function addOrderExtraQuestion(SummitOrderExtraQuestionType $extra_question){
+
+        if($this->order_extra_questions->contains($extra_question)) return;
+        $extra_question->setOrder($this->getOrderExtraQuestionMaxOrder() +1);
+        $this->order_extra_questions->add($extra_question);
+        $extra_question->setSummit($this);
+    }
+
+    /**
+     * @param SummitOrderExtraQuestionType $extra_question
+     */
+    public function removeOrderExtraQuestion(SummitOrderExtraQuestionType $extra_question){
+
+        if(!$this->order_extra_questions->contains($extra_question)) return;
+        $this->order_extra_questions->removeElement($extra_question);
+        $extra_question->clearSummit();
+    }
+
+    /**
+     * @param SummitOrderExtraQuestionType $question
+     * @param int $new_order
+     * @throws ValidationException
+     */
+    public function recalculateQuestionOrder(SummitOrderExtraQuestionType $question, $new_order){
+        self::recalculateOrderForSelectable($this->order_extra_questions, $question, $new_order);
+    }
+
+    /**
+     * @param Sponsor $sponsor
+     * @param int $new_order
+     * @throws ValidationException
+     */
+    public function recalculateSummitSponsorOrder(Sponsor $sponsor, $new_order){
+        self::recalculateOrderForSelectable($this->summit_sponsors, $sponsor, $new_order);
+    }
+
+    /**
+     * @return SummitOrder[]
+     */
+    public function getOrders()
+    {
+        return $this->orders;
+    }
+
+    /**
+     * @param int $id
+     * @return SummitOrder|null
+     */
+    public function getOrderById(int $id):?SummitOrder{
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('id', intval($id)));
+        $order = $this->orders->matching($criteria)->first();
+        return $order === false ? null : $order;
+    }
+
+    /**
+     * @param SummitOrder $order
+     */
+    public function addOrder(SummitOrder $order){
+        if($this->orders->contains($order)) return;
+        $this->orders->add($order);
+        $order->setSummit($this);
+    }
+
+    /**
+     * @param SummitOrder $order
+     */
+    public function removeOrder(SummitOrder $order){
+        if(!$this->orders->contains($order)) return;
+        $this->orders->removeElement($order);
+        $order->clearSummit();
+    }
+
+    /**
+     * @param string $number
+     * @return bool
+     */
+    public function existOrderNumber(string $number):bool
+    {
+        $criteria = Criteria::create();
+        $criteria->where(Criteria::expr()->eq('number', trim($number)));
+        return $this->orders->matching($criteria)->count() > 0;
+    }
+
+    /**
+     * @var bool
+     */
+    private $mark_as_deleted;
+
+
+    public function markAsDeleted(){
+        $this->mark_as_deleted = true;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isDeleting():bool{
+        return is_null($this->mark_as_deleted) ? false : $this->mark_as_deleted;
+    }
+
+    /**
+     * @return string
+     */
+    public function getQRRegistryFieldDelimiter():string {
+        return IQREntity::QRRegistryFieldDelimiterChar;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRegistrationReminderEmailDaysInterval(): ?int
+    {
+        $days_interval = $this->registration_reminder_email_days_interval;
+
+        if (is_null($days_interval)) {
+            $days_interval = intval(Config::get('registration.reminder_email_days_interval', 0));
+        }
+
+        return $days_interval;
+    }
+
+    /**
+     * @param int $registration_reminder_email_days_interval
+     */
+    public function setRegistrationReminderEmailDaysInterval(int $registration_reminder_email_days_interval): void
+    {
+        $this->registration_reminder_email_days_interval = $registration_reminder_email_days_interval;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isEnded():bool{
+        $utc_now  = new \DateTime('now', new \DateTimeZone('UTC'));
+        $end_date = $this->getEndDate();
+        if(is_null($end_date)) return false;
+        return $end_date < $utc_now;
+    }
+
+
+    /**
+     * @param DateTime $day
+     * @param bool $omit_time_check
+     * @return bool
+     */
+    public function dayIsOnSummitPeriod(\DateTime $day, $omit_time_check = true):bool{
+        if(is_null($this->begin_date)) return false;
+        if(is_null($this->end_date)) return false;
+
+        $dt  = clone $day;
+        $dt  = $dt->setTimezone(new \DateTimeZone('UTC'));
+
+        if($omit_time_check)
+            $dt= $dt->setTime(0, 0,0);
+
+        $dt = $dt->getTimestamp();
+
+        $bd = clone $this->begin_date;
+
+        if($omit_time_check)
+            $bd  = $bd->setTime(0,0,0,0);
+
+        $bd = $bd->getTimestamp();
+
+        $ed = clone $this->end_date;
+
+        if($omit_time_check)
+            $ed  = $ed->setTime(0,0,0,0);
+
+        $ed  = $ed->getTimestamp();
+
+        return $bd <= $dt && $dt <= $ed;
+    }
+
+    /*
+     * @return string
+     */
+    public function getExternalRegistrationFeedType(): ?string
+    {
+        return $this->external_registration_feed_type;
+    }
+
+    /**
+     * @return string
+     */
+    public function getExternalRegistrationFeedApiKey(): ?string
+    {
+        return $this->external_registration_feed_api_key;
+    }
+
+    /**
+     * @param string $external_registration_feed_type
+     */
+    public function setExternalRegistrationFeedType(string $external_registration_feed_type): void
+    {
+        if(!empty($external_registration_feed_type) && !in_array($external_registration_feed_type, ISummitExternalRegistrationFeedType::ValidFeedTypes))
+            throw new ValidationException(sprintf("feed type %s is not valid!", $external_registration_feed_type));
+        $this->external_registration_feed_type = $external_registration_feed_type;
+    }
+
+    /**
+     * @param string $external_registration_feed_api_key
+     */
+    public function setExternalRegistrationFeedApiKey(string $external_registration_feed_api_key): void
+    {
+        $this->external_registration_feed_api_key = $external_registration_feed_api_key;
+    }
+
 }

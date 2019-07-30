@@ -346,7 +346,7 @@ final class DoctrineSummitEventRepository
     {
         $query =  $this->getEntityManager()->createQueryBuilder()
             ->select("e")
-            ->from(\models\summit\SummitEvent::class, "e")
+            ->from($this->getBaseEntity(), "e")
             ->join('e.summit', 's', Join::WITH, " s.id = :summit_id")
             ->where('e.published = 1')
             ->andWhere('e.external_id not in (:external_ids)')

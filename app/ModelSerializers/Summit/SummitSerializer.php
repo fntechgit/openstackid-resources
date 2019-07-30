@@ -15,6 +15,7 @@
 use App\Http\Exceptions\HTTP403ForbiddenException;
 use App\Security\SummitScopes;
 use Illuminate\Support\Facades\Config;
+use Libs\ModelSerializers\AbstractSerializer;
 use models\summit\Summit;
 use DateTime;
 /**
@@ -39,6 +40,7 @@ class SummitSerializer extends SilverStripeSerializer
         'PresentationVotesCount'                         => 'presentation_votes_count:json_int' ,
         'PresentationVotersCount'                        => 'presentation_voters_count:json_int' ,
         'AttendeesCount'                                 => 'attendees_count:json_int',
+        'PaidTicketsCount'                               => 'paid_tickets_count:json_int',
         'SpeakersCount'                                  => 'speakers_count:json_int',
         'PresentationsSubmittedCount'                    => 'presentations_submitted_count:json_int',
         'PublishedEventsCount'                           => 'published_events_count:json_int',
@@ -59,7 +61,20 @@ class SummitSerializer extends SilverStripeSerializer
         'MeetingRoomBookingMaxAllowed'                   => 'meeting_room_booking_max_allowed:json_int',
         'BeginAllowBookingDate'                          => 'begin_allow_booking_date:datetime_epoch',
         'EndAllowBookingDate'                            => 'end_allow_booking_date:datetime_epoch',
-        'LogoUrl'                                        => 'logo:json_url'
+        'LogoUrl'                                        => 'logo:json_url',
+        // External Feeds
+        'ApiFeedType'                                    => 'api_feed_type:json_string',
+        'ApiFeedUrl'                                     => 'api_feed_url:json_string',
+        'ApiFeedKey'                                     => 'api_feed_key:json_string',
+        // registration
+        'OrderQRPrefix'                                  => 'order_qr_prefix:json_string',
+        'TicketQRPrefix'                                 => 'ticket_qr_prefix:json_string',
+        'BadgeQRPrefix'                                  => 'badge_qr_prefix:json_string',
+        'QRRegistryFieldDelimiter'                       => 'qr_registry_field_delimiter:json_string',
+        'ReassignTicketTillDate'                         => 'reassign_ticket_till_date:datetime_epoch',
+        'RegistrationDisclaimerContent'                  => 'registration_disclaimer_content:json_string',
+        'RegistrationDisclaimerMandatory'                => 'registration_disclaimer_mandatory:json_boolean',
+        'RegistrationReminderEmailDaysInterval'          => 'registration_reminder_email_days_interval:json_int',
     ];
 
     protected static $allowed_relations = [
@@ -68,6 +83,9 @@ class SummitSerializer extends SilverStripeSerializer
         'wifi_connections',
         'selection_plans',
         'meeting_booking_room_allowed_attributes',
+        'summit_sponsors',
+        'order_extra_questions',
+        'tax_types',
     ];
 
     /**
@@ -114,6 +132,22 @@ class SummitSerializer extends SilverStripeSerializer
             $values['ticket_types'] = $ticket_types;
         }
 
+        if(in_array('order_extra_questions', $relations)) {
+            $order_extra_questions = [];
+            foreach ($summit->getOrderExtraQuestions() as $question) {
+                $order_extra_questions[] = SerializerRegistry::getInstance()->getSerializer($question)->serialize(AbstractSerializer::filterExpandByPrefix($expand,"order_extra_questions"));
+            }
+            $values['order_extra_questions'] = $order_extra_questions;
+        }
+
+        if(in_array('tax_types', $relations)) {
+            $tax_types = [];
+            foreach ($summit->getTaxTypes() as $tax_type) {
+                $tax_types[] = SerializerRegistry::getInstance()->getSerializer($tax_type)->serialize(AbstractSerializer::filterExpandByPrefix($expand,"tax_types"));
+            }
+            $values['tax_types'] = $tax_types;
+        }
+
         // meeting_booking_room_allowed_attributes
         if(in_array('meeting_booking_room_allowed_attributes', $relations)) {
             $meeting_booking_room_allowed_attributes = [];
@@ -121,6 +155,15 @@ class SummitSerializer extends SilverStripeSerializer
                 $meeting_booking_room_allowed_attributes[] = SerializerRegistry::getInstance()->getSerializer($attr)->serialize($expand);
             }
             $values['meeting_booking_room_allowed_attributes'] = $meeting_booking_room_allowed_attributes;
+        }
+
+        // summit sponsors
+        if(in_array('summit_sponsors', $relations)) {
+            $summit_sponsors = [];
+            foreach ($summit->getSummitSponsors() as $sponsor) {
+                $summit_sponsors[] = SerializerRegistry::getInstance()->getSerializer($sponsor)->serialize($expand);
+            }
+            $values['summit_sponsors'] = $summit_sponsors;
         }
 
         // locations
@@ -181,7 +224,7 @@ class SummitSerializer extends SilverStripeSerializer
                     break;
                     case 'sponsors':{
                         $sponsors = [];
-                        foreach ($summit->getSponsors() as $company) {
+                        foreach ($summit->getEventSponsors() as $company) {
                             $sponsors[] = SerializerRegistry::getInstance()->getSerializer($company)->serialize();
                         }
                         $values['sponsors'] = $sponsors;
@@ -241,7 +284,7 @@ class SummitSerializer extends SilverStripeSerializer
                         $values['schedule'] = $schedule;
 
                         $sponsors = [];
-                        foreach ($summit->getSponsors() as $company) {
+                        foreach ($summit->getEventSponsors() as $company) {
                             $sponsors[] = SerializerRegistry::getInstance()->getSerializer($company)->serialize();
                         }
                         $values['sponsors'] = $sponsors;
@@ -275,7 +318,9 @@ class SummitSerializer extends SilverStripeSerializer
             }
         }
 
+        $values['supported_currencies'] = $summit->getSupportedCurrencies();
         $values['timestamp'] = time();
+
         return $values;
     }
 }

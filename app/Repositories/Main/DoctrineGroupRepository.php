@@ -53,4 +53,13 @@ final class DoctrineGroupRepository
     {
        return Group::class;
     }
+
+    /**
+     * @param string $slug
+     * @return Group|null
+     */
+    public function getBySlug(string $slug): ?Group
+    {
+        return $this->findOneBy(['code'=>trim($slug)]);
+    }
 }

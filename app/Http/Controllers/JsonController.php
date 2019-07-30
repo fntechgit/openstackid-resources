@@ -145,16 +145,36 @@ abstract class JsonController extends Controller
      * @param array $columns
      * @return \Illuminate\Http\Response
      */
-    private function csv($filename, array $items,  array $formatters = [], $field_separator = ",", $mime_type = 'application/vnd.ms-excel', array $columns = []){
+    protected function csv($filename, array $items,  array $formatters = [], $field_separator = ",", $mime_type = 'application/vnd.ms-excel', array $columns = []){
         $headers = [
             'Cache-Control'             => 'must-revalidate, post-check=0, pre-check=0',
             'Content-type'              => $mime_type,
             'Content-Transfer-Encoding' => 'binary',
             'Content-Disposition'       => 'attachment; filename='.$filename.".csv",
+            'Last-Modified: '           => gmdate('D, d M Y H:i:s').' GMT',
             'Expires'                   => '0',
             'Pragma'                    => 'public',
         ];
 
         return Response::make(CSVExporter::getInstance()->export($items, $field_separator, $columns, $formatters), 200, $headers);
+    }
+
+    /**
+     * @param string $filename
+     * @param string $content
+     * @return \Illuminate\Http\Response
+     */
+    protected function pdf(string $filename, string $content){
+        $headers = [
+            'Cache-Control'             => 'must-revalidate, post-check=0, pre-check=0',
+            'Content-type'              => "application/pdf",
+            'Content-Transfer-Encoding' => 'binary',
+            'Content-Disposition'       => 'attachment; filename='.basename($filename),
+            'Expires'                   => '0',
+            'Last-Modified: '           => gmdate('D, d M Y H:i:s').' GMT',
+            'Pragma'                    => 'public',
+        ];
+
+        return Response::make($content, 200, $headers);
     }
 }

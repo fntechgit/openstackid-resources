@@ -25,9 +25,9 @@ interface IMemberRepository extends IBaseRepository
 {
     /**
      * @param string $email
-     * @return Member
+     * @return Member|null
      */
-    public function getByEmail($email);
+    public function getByEmail($email):?Member;
 
     /**
      * @param string $fullname

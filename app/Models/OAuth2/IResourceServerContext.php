@@ -73,4 +73,9 @@ interface IResourceServerContext
      * @return Member|null
      */
     public function getCurrentUser():?Member;
+
+    /**
+     * @return array
+     */
+    public function getCurrentUserGroups():array;
 }

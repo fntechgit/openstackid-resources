@@ -112,4 +112,45 @@ final class DoctrineSummitTicketTypeRepository
             $data
         );
     }
+
+    /**
+     * @param Summit $summit
+     * @param array $ids
+     * @return SummitTicketType[]
+     */
+    public function getByIdsExclusiveLock(Summit $summit, array $ids)
+    {
+        $query = $this->getEntityManager()
+            ->createQueryBuilder()
+            ->select("e")
+            ->from(SummitTicketType::class, "e")
+            ->leftJoin('e.summit', 's')
+            ->where("s.id = :summit_id")
+            ->andWhere("e.id in (:ticket_ids)");
+
+        $query->setParameter("summit_id", $summit->getId());
+        $query->setParameter("ticket_ids", $ids);
+        return $query->getQuery()->setLockMode(\Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE)->getResult();
+    }
+
+    /**
+     * @param Summit $summit
+     * @param string $type
+     * @return SummitTicketType|null
+     */
+    public function getByType(Summit $summit, string $type): ?SummitTicketType
+    {
+        $query = $this->getEntityManager()
+            ->createQueryBuilder()
+            ->select("e")
+            ->from(SummitTicketType::class, "e")
+            ->leftJoin('e.summit', 's')
+            ->where("s.id = :summit_id")
+            ->andWhere("e.name = :type");
+
+        $query->setParameter("summit_id", $summit->getId());
+        $query->setParameter("type", $type);
+
+        return $query->getQuery()->getOneOrNullResult();
+    }
 }

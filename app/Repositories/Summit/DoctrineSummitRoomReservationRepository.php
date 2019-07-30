@@ -167,7 +167,7 @@ final class DoctrineSummitRoomReservationRepository
             ->createQueryBuilder()
             ->select("e")
             ->from($this->getBaseEntity(), "e")
-            ->where("e.payment_gateway_cart_id = payment_gateway_cart_id");
+            ->where("e.payment_gateway_cart_id = :payment_gateway_cart_id");
 
         $query->setParameter("payment_gateway_cart_id", trim($payment_gateway_cart_id));
 

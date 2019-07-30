@@ -34,6 +34,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\PromoCodesRedeemProcessor::class,
         \App\Console\Commands\SummitRoomReservationRevocationCommand::class,
         \App\Console\Commands\ExternalScheduleFeedIngestionCommand::class,
+        \App\Console\Commands\RegistrationSummitOrderRevocationCommand::class,
+        \App\Console\Commands\RegistrationSummitOrderReminderEmailCommand::class,
     ];
 
     /**
@@ -88,5 +90,13 @@ class Kernel extends ConsoleKernel
         // external schedule ingestion task
 
         $schedule->command("summit:external-schedule-feed-ingestion-process")->everyFifteenMinutes()->withoutOverlapping();
+
+        // registration orders
+
+        $schedule->command('summit:order-reservation-revocation')->everyFiveMinutes()->withoutOverlapping();
+
+        // reminder emails
+
+        $schedule->command('summit:registration-order-reminder-action-email')->everyThirtyMinutes()->timezone(new \DateTimeZone('UTC'))->withoutOverlapping();
     }
 }

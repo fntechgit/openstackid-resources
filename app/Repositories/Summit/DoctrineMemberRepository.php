@@ -32,16 +32,16 @@ final class DoctrineMemberRepository
 
     /**
      * @param string $email
-     * @return Member
+     * @return Member|null
      */
-    public function getByEmail($email)
+    public function getByEmail($email): ?Member
     {
         return $this->getEntityManager()
             ->createQueryBuilder()
             ->select("e")
             ->from($this->getBaseEntity(), "e")
             ->where("e.email = :email")
-            ->setParameter("email",trim($email))
+            ->setParameter("email", strtolower(trim($email)))
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();

@@ -19,6 +19,9 @@ return [
 
     'env' => env('APP_ENV', 'dev'),
 
+    // emails will be send to this email on dev/testing mode
+    'dev_email_to' => env('DEV_EMAIL_TO', null),
+
     /*
     |--------------------------------------------------------------------------
     | Application Debug Mode
@@ -159,6 +162,7 @@ return [
         LaravelDoctrine\Extensions\BeberleiExtensionsServiceProvider::class,
         Sichikawa\LaravelSendgridDriver\SendgridTransportServiceProvider::class,
         LaravelDoctrine\Migrations\MigrationsServiceProvider::class,
+        SimpleSoftwareIO\QrCode\QrCodeServiceProvider::class
     ],
 
     /*
@@ -206,7 +210,8 @@ return [
         'EntityManager' => LaravelDoctrine\ORM\Facades\EntityManager::class,
         'Registry'      => LaravelDoctrine\ORM\Facades\Registry::class,
         'Doctrine'      => LaravelDoctrine\ORM\Facades\Doctrine::class,
-        'Encryption' => services\utils\Facades\Encryption::class,
+        'Encryption'    => services\utils\Facades\Encryption::class,
+        'QrCode'        => SimpleSoftwareIO\QrCode\Facades\QrCode::class,
     ],
 
     'app_name'    => env('APP_NAME', 'Open Infrastructure Summit'),

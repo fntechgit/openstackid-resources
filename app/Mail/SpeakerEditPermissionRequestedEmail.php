@@ -25,14 +25,24 @@ final class SpeakerEditPermissionRequestedEmail extends Mailable
     use Queueable, SerializesModels;
 
     /**
-     * @var SpeakerEditPermissionRequest
+     * @var string
      */
-    public $request;
+    public $token;
 
     /**
      * @var string
      */
-    public $token;
+    public $requested_by_full_name;
+
+    /**
+     * @var string
+     */
+    public $speaker_full_name;
+
+    /**
+     * @var string
+     */
+    public $link;
 
     /**
      * SpeakerEditPermissionRequested constructor.
@@ -41,8 +51,11 @@ final class SpeakerEditPermissionRequestedEmail extends Mailable
      */
     public function __construct(SpeakerEditPermissionRequest $request, string $token)
     {
-        $this->request = $request;
-        $this->token   = $token;
+
+        $this->requested_by_full_name = $request->getRequestedBy()->getFullName();
+        $this->speaker_full_name =  $request->getSpeaker()->getFullName();
+        $this->token             = $token;
+        $this->link              = $request->getConfirmationLink($request->getSpeaker()->getId(), $token);
     }
 
     /**

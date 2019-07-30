@@ -13,6 +13,7 @@
  **/
 use App\Services\Apis\CartAlreadyPaidException;
 use App\Services\Apis\IPaymentGatewayAPI;
+use App\Services\Apis\IRegistrationPaymentGatewayAPI;
 use Illuminate\Http\Request as LaravelRequest;
 use models\exceptions\ValidationException;
 use Stripe\Charge;
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Log;
  * Class StripesApi
  * @package App\Services\Apis\PaymentGateways
  */
-final class StripeApi implements IPaymentGatewayAPI
+final class StripeApi implements IPaymentGatewayAPI, IRegistrationPaymentGatewayAPI
 {
     /**
      * @var string
@@ -74,18 +75,19 @@ final class StripeApi implements IPaymentGatewayAPI
         }
 
         $request = [
-            'amount'        => intval($amount),
-            'currency'      => $currency,
+            'amount'               => intval($amount),
+            'currency'             => $currency,
+            'payment_method_types' => ['card'],
         ];
 
         if(isset($payload['receipt_email']))
         {
-            $request['receipt_email']= trim($payload['receipt_email']);
+            $request['receipt_email'] = trim($payload['receipt_email']);
         }
 
         if(isset($payload['metadata']))
         {
-            $request['metadata']= $payload['metadata'];
+            $request['metadata'] = $payload['metadata'];
         }
 
         $intent = PaymentIntent::create($request);
@@ -263,10 +265,13 @@ final class StripeApi implements IPaymentGatewayAPI
         if(is_null($intent))
             throw new \InvalidArgumentException();
 
-        if(!in_array($intent->status,[ PaymentIntent::STATUS_REQUIRES_PAYMENT_METHOD,
+        if(!in_array($intent->status,[
+            PaymentIntent::STATUS_REQUIRES_PAYMENT_METHOD,
             PaymentIntent::STATUS_REQUIRES_CAPTURE,
             PaymentIntent::STATUS_REQUIRES_CONFIRMATION,
-            PaymentIntent::STATUS_REQUIRES_ACTION
+            PaymentIntent::STATUS_REQUIRES_ACTION,
+            "requires_source",
+            "requires_source_action",
         ]))
             throw new CartAlreadyPaidException(sprintf("cart id %s has status %s", $cart_id, $intent->status));
 
@@ -283,7 +288,9 @@ final class StripeApi implements IPaymentGatewayAPI
             PaymentIntent::STATUS_REQUIRES_PAYMENT_METHOD,
             PaymentIntent::STATUS_REQUIRES_CAPTURE,
             PaymentIntent::STATUS_REQUIRES_CONFIRMATION,
-            PaymentIntent::STATUS_REQUIRES_ACTION
+            PaymentIntent::STATUS_REQUIRES_ACTION,
+            "requires_source",
+            "requires_source_action",
         ]);
     }
 

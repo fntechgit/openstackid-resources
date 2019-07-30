@@ -27,8 +27,19 @@ final class AdminSummitSerializer extends SummitSerializer
         'CalendarSyncName'            => 'calendar_sync_name:json_string',
         'CalendarSyncDesc'            => 'calendar_sync_desc:json_string',
         // External Feeds
-        'ApiFeedType'                 => 'api_feed_type:json_string',
-        'ApiFeedUrl'                  => 'api_feed_url:json_string',
-        'ApiFeedKey'                  => 'api_feed_key:json_string',
+        'ApiFeedType'                                    => 'api_feed_type:json_string',
+        'ApiFeedUrl'                                     => 'api_feed_url:json_string',
+        'ApiFeedKey'                                     => 'api_feed_key:json_string',
+        // registration
+        'OrderQRPrefix'                                  => 'order_qr_prefix:json_string',
+        'TicketQRPrefix'                                 => 'ticket_qr_prefix:json_string',
+        'BadgeQRPrefix'                                  => 'badge_qr_prefix:json_string',
+        'QRRegistryFieldDelimiter'                       => 'qr_registry_field_delimiter:json_string',
+        'ReassignTicketTillDate'                         => 'reassign_ticket_till_date:datetime_epoch',
+        'RegistrationDisclaimerContent'                  => 'registration_disclaimer_content:json_string',
+        'RegistrationDisclaimerMandatory'                => 'registration_disclaimer_mandatory:json_boolean',
+        // registration external feed
+        'ExternalRegistrationFeedType'                   => 'external_registration_feed_type:json_string',
+        'ExternalRegistrationFeedApiKey'                 => 'external_registration_feed_api_key:json_string',
     ];
 }

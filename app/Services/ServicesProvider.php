@@ -11,6 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
+
+use App\Http\Controllers\OAuth2SummitLocationsApiController;
+use App\Http\Controllers\OAuth2SummitOrdersApiController;
 use App\Permissions\IPermissionsManager;
 use App\Permissions\PermissionsManager;
 use App\Services\Apis\CalendarSync\ICalendarSyncRemoteFacadeFactory;
@@ -19,20 +22,34 @@ use App\Services\Apis\ExternalScheduleFeeds\IExternalScheduleFeedFactory;
 use App\Services\Apis\GoogleGeoCodingAPI;
 use App\Services\Apis\IGeoCodingAPI;
 use App\Services\Apis\IPaymentGatewayAPI;
+use App\Services\Apis\IRegistrationPaymentGatewayAPI;
 use App\Services\Apis\PaymentGateways\StripeApi;
 use App\Services\Model\AttendeeService;
 use App\Services\Model\FolderService;
 use App\Services\Model\IAttendeeService;
+use App\Services\Model\ICompanyService;
 use App\Services\Model\IFolderService;
 use App\Services\Model\ILocationService;
 use App\Services\Model\IMemberService;
+use App\Services\Model\Imp\CompanyService;
+use App\Services\Model\Imp\RegistrationIngestionService;
+use App\Services\Model\Imp\SponsorBadgeScanService;
 use App\Services\Model\IOrganizationService;
 use App\Services\Model\IPresentationCategoryGroupService;
+use App\Services\Model\IRegistrationIngestionService;
 use App\Services\Model\IRSVPTemplateService;
 use App\Services\Model\IScheduleIngestionService;
+use App\Services\Model\ISponsorBadgeScanService;
+use App\Services\Model\ISponsorshipTypeService;
+use App\Services\Model\ISummitAccessLevelTypeService;
+use App\Services\Model\ISummitBadgeFeatureTypeService;
+use App\Services\Model\ISummitBadgeTypeService;
 use App\Services\Model\ISummitEventTypeService;
+use App\Services\Model\ISummitOrderExtraQuestionTypeService;
 use App\Services\Model\ISummitPushNotificationService;
+use App\Services\Model\ISummitRefundPolicyTypeService;
 use App\Services\Model\ISummitSelectionPlanService;
+use App\Services\Model\ISummitTaxTypeService;
 use App\Services\Model\ISummitTicketTypeService;
 use App\Services\Model\ISummitTrackService;
 use App\Services\Model\ISummitTrackTagGroupService;
@@ -41,24 +58,32 @@ use App\Services\Model\ITrackQuestionTemplateService;
 use App\Services\Model\OrganizationService;
 use App\Services\Model\PresentationCategoryGroupService;
 use App\Services\Model\ScheduleIngestionService;
+use App\Services\Model\SponsorshipTypeService;
+use App\Services\Model\SummitAccessLevelTypeService;
+use App\Services\Model\SummitBadgeFeatureTypeService;
+use App\Services\Model\SummitBadgeTypeService;
 use App\Services\Model\SummitLocationService;
 use App\Services\Model\MemberService;
 use App\Services\Model\RSVPTemplateService;
+use App\Services\Model\SummitOrderService;
 use App\Services\Model\SummitPromoCodeService;
 use App\Services\Model\SummitPushNotificationService;
 use App\Services\Model\SummitSelectionPlanService;
+use App\Services\Model\SummitTaxTypeService;
 use App\Services\Model\SummitTicketTypeService;
 use App\Services\Model\SummitTrackService;
 use App\Services\Model\SummitTrackTagGroupService;
 use App\Services\Model\TagService;
 use App\Services\Model\TrackQuestionTemplateService;
 use App\Services\SummitEventTypeService;
+use App\Services\SummitOrderExtraQuestionTypeService;
+use App\Services\SummitRefundPolicyTypeService;
+use App\Services\SummitSponsorService;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
-use models\main\ITagRepository;
 use models\utils\SilverstripeBaseModel;
 use ModelSerializers\BaseSerializerTypeSelector;
 use ModelSerializers\ISerializerTypeSelector;
@@ -72,10 +97,14 @@ use services\model\ISpeakerService;
 use services\model\ISummitPromoCodeService;
 use libs\utils\ICacheService;
 use services\model\ISummitService;
+use services\model\ISummitSponsorService;
 use services\model\PresentationService;
 use services\model\SpeakerService;
 use services\model\SummitService;
 use services\utils\RedisCacheService;
+use App\Services\Model\ISummitOrderService;
+use App\Services\Apis\ExternalRegistrationFeeds\IExternalRegistrationFeedFactory;
+use App\Services\Apis\ExternalRegistrationFeeds\ExternalRegistrationFeedFactory;
 /***
  * Class ServicesProvider
  * @package services
@@ -135,13 +164,6 @@ final class ServicesProvider extends ServiceProvider
         App::singleton(IPushNotificationApi::class,   function(){
             $api = new FireBaseGCMApi(Config::get("server.firebase_gcm_server_key", null));
             return $api;
-        });
-
-        App::singleton(IPaymentGatewayAPI::class, function(){
-            return new StripeApi(
-                Config::get("stripe.private_key", null),
-                Config::get("stripe.endpoint_secret", null)
-            );
         });
 
         App::singleton
@@ -259,7 +281,6 @@ final class ServicesProvider extends ServiceProvider
             );
         });
 
-
         App::singleton(
             ISummitSelectionPlanService::class,
             SummitSelectionPlanService::class
@@ -268,6 +289,11 @@ final class ServicesProvider extends ServiceProvider
         App::singleton(
             IOrganizationService::class,
             OrganizationService::class
+        );
+
+        App::singleton(
+            ICompanyService::class,
+            CompanyService::class
         );
 
         App::singleton(
@@ -294,5 +320,114 @@ final class ServicesProvider extends ServiceProvider
             IScheduleIngestionService::class,
             ScheduleIngestionService::class
         );
+
+        App::singleton
+        (
+            ISummitAccessLevelTypeService::class,
+            SummitAccessLevelTypeService::class
+        );
+
+        App::singleton
+        (
+            ISummitTaxTypeService::class,
+            SummitTaxTypeService::class
+        );
+
+        App::singleton
+        (
+            ISummitBadgeFeatureTypeService::class,
+            SummitBadgeFeatureTypeService::class
+        );
+
+        App::singleton
+        (
+            ISummitBadgeTypeService::class,
+            SummitBadgeTypeService::class
+        );
+
+        App::singleton(
+            ISummitSponsorService::class,
+            SummitSponsorService::class
+        );
+
+        App::singleton(
+            ISummitRefundPolicyTypeService::class,
+            SummitRefundPolicyTypeService::class
+        );
+
+        App::singleton(
+            ISummitOrderExtraQuestionTypeService::class,
+            SummitOrderExtraQuestionTypeService::class
+        );
+
+        App::singleton(
+            ISponsorshipTypeService::class,
+            SponsorshipTypeService::class
+        );
+
+        App::singleton(ISummitOrderService::class, SummitOrderService::class);
+
+        App::singleton(ISponsorBadgeScanService::class, SponsorBadgeScanService::class);
+
+        // payment gateway
+
+        // bookable rooms
+
+        App::when(OAuth2SummitLocationsApiController::class)
+        ->needs(IPaymentGatewayAPI::class)
+        ->give(function(){
+                return new StripeApi(
+                    Config::get("stripe.booking_private_key", null),
+                    Config::get("stripe.booking_endpoint_secret", null)
+                );
+        });
+
+        App::when(SummitLocationService::class)
+            ->needs(IPaymentGatewayAPI::class)
+            ->give(function(){
+                return new StripeApi(
+                    Config::get("stripe.booking_private_key", null),
+                    Config::get("stripe.booking_endpoint_secret", null)
+                );
+            });
+
+        // summit registration
+
+        App::when(OAuth2SummitOrdersApiController::class)
+            ->needs(IPaymentGatewayAPI::class)
+            ->give(function(){
+                return new StripeApi(
+                    Config::get("stripe.registration_private_key", null),
+                    Config::get("stripe.registration_endpoint_secret", null)
+                );
+            });
+
+        App::when(SummitOrderService::class)
+            ->needs(IPaymentGatewayAPI::class)
+            ->give(function(){
+                return new StripeApi(
+                    Config::get("stripe.registration_private_key", null),
+                    Config::get("stripe.registration_endpoint_secret", null)
+                );
+            });
+
+
+        App::singleton(IRegistrationPaymentGatewayAPI::class,   function(){
+            return new StripeApi(
+                Config::get("stripe.registration_private_key", null),
+                Config::get("stripe.registration_endpoint_secret", null)
+            );
+        });
+
+        App::singleton(
+            IRegistrationIngestionService::class,
+            RegistrationIngestionService::class
+        );
+
+        App::singleton(
+            IExternalRegistrationFeedFactory::class,
+            ExternalRegistrationFeedFactory::class
+        );
     }
+
 }

@@ -12,19 +12,23 @@
  * limitations under the License.
  **/
 use App\Models\Foundation\Main\IGroup;
+use Illuminate\Support\Facades\App;
 use Models\Foundation\Main\CCLA\Team;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
 use models\exceptions\ValidationException;
+use models\oauth2\IResourceServerContext;
 use models\summit\CalendarSync\CalendarSyncInfo;
 use models\summit\CalendarSync\ScheduleCalendarSyncInfo;
 use models\summit\PresentationSpeaker;
 use models\summit\RSVP;
+use models\summit\Sponsor;
 use models\summit\Summit;
 use models\summit\SummitEvent;
 use models\summit\SummitEventFeedback;
+use models\summit\SummitOrder;
 use models\summit\SummitRoomReservation;
 use models\utils\SilverstripeBaseModel;
 use Doctrine\ORM\Mapping AS ORM;
@@ -37,6 +41,12 @@ use Doctrine\ORM\Mapping AS ORM;
  */
 class Member extends SilverstripeBaseModel
 {
+
+    const MembershipTypeFoundation = 'Foundation';
+
+    const MembershipTypeCommunity  = 'Community';
+
+    const MembershipTypeNone       = 'None';
 
     /**
      * @ORM\Column(name="FirstName", type="string")
@@ -61,6 +71,12 @@ class Member extends SilverstripeBaseModel
      * @var string
      */
     private $github_user;
+
+    /**
+     * @ORM\Column(name="MembershipType", type="string")
+     * @var string
+     */
+    private $membership_type;
 
     /**
      * @ORM\OneToMany(targetEntity="models\summit\SummitEventFeedback", mappedBy="owner", cascade={"persist"}, orphanRemoval=true)
@@ -143,7 +159,7 @@ class Member extends SilverstripeBaseModel
     /**
      *
      * @ORM\Column(name="ExternalUserId", type="integer")
-     * @var int
+     * @var int|null
      */
     private $user_external_id;
 
@@ -185,6 +201,12 @@ class Member extends SilverstripeBaseModel
     private $rsvp;
 
     /**
+     * @ORM\ManyToMany(targetEntity="models\summit\Sponsor", mappedBy="members")
+     * @var Sponsor[]
+     */
+    private $sponsor_memberships;
+
+    /**
      * @ORM\ManyToMany(targetEntity="models\main\Group", inversedBy="members")
      * @ORM\JoinTable(name="Group_Members",
      *      joinColumns={@ORM\JoinColumn(name="MemberID", referencedColumnName="ID")},
@@ -218,7 +240,7 @@ class Member extends SilverstripeBaseModel
 
     /**
      * @ORM\OneToMany(targetEntity="models\summit\SummitRoomReservation", mappedBy="owner", cascade={"persist"}, orphanRemoval=true)
-     * @var ArrayCollection
+     * @var SummitRoomReservation[]
      */
     private $reservations;
 
@@ -229,24 +251,34 @@ class Member extends SilverstripeBaseModel
     private $speaker;
 
     /**
+     * @ORM\OneToMany(targetEntity="models\summit\SummitOrder", mappedBy="owner", cascade={"persist","remove"}, orphanRemoval=true)
+     * @var SummitOrder[]
+     */
+    private $summit_registration_orders;
+
+    /**
      * Member constructor.
      */
     public function __construct()
     {
         parent::__construct();
-        $this->active             = false;
-        $this->email_verified     = false;
-        $this->feedback           = new ArrayCollection();
-        $this->groups             = new ArrayCollection();
-        $this->ccla_teams         = new ArrayCollection();
-        $this->affiliations       = new ArrayCollection();
-        $this->team_memberships   = new ArrayCollection();
-        $this->favorites          = new ArrayCollection();
-        $this->schedule           = new ArrayCollection();
-        $this->rsvp               = new ArrayCollection();
-        $this->calendars_sync     = new ArrayCollection();
-        $this->schedule_sync_info = new ArrayCollection();
-        $this->reservations       = new ArrayCollection();
+        $this->active                     = false;
+        $this->email_verified             = false;
+        $this->feedback                   = new ArrayCollection();
+        $this->groups                     = new ArrayCollection();
+        $this->ccla_teams                 = new ArrayCollection();
+        $this->affiliations               = new ArrayCollection();
+        $this->team_memberships           = new ArrayCollection();
+        $this->favorites                  = new ArrayCollection();
+        $this->schedule                   = new ArrayCollection();
+        $this->rsvp                       = new ArrayCollection();
+        $this->calendars_sync             = new ArrayCollection();
+        $this->schedule_sync_info         = new ArrayCollection();
+        $this->reservations               = new ArrayCollection();
+        $this->sponsor_memberships        = new ArrayCollection();
+        $this->summit_registration_orders = new ArrayCollection();
+        $this->user_external_id           = 0;
+        $this->membership_type            = self::MembershipTypeNone;
     }
 
     /**
@@ -618,17 +650,40 @@ class Member extends SilverstripeBaseModel
     public function isAdmin()
     {
         $admin_group = $this->getGroupByCode(IGroup::Administrators);
-        return $admin_group != false && !is_null($admin_group);
+        $res = $admin_group != false && !is_null($admin_group);
+        if(!$res){
+            $resource_server_ctx = App::make(IResourceServerContext::class);
+            if($resource_server_ctx instanceof IResourceServerContext){
+                foreach($resource_server_ctx->getCurrentUserGroups() as $group)
+                {
+                    if(isset($group['slug']) && trim($group['slug']) == IGroup::Administrators)
+                        return true;
+                }
+            }
+        }
+        return $res;
     }
 
     /**
-     * @param string $code
+     * @param $code
+     * @param bool $skip_external
      * @return bool
      */
-    public function isOnGroup($code){
+    public function isOnGroup($code, $skip_external = false){
         if($this->isAdmin()) return true;
         $group = $this->getGroupByCode($code);
-        return $group != false && !is_null($group);
+        $res   = $group != false && !is_null($group);
+        if(!$res && !$skip_external){
+            $resource_server_ctx = App::make(IResourceServerContext::class);
+            if($resource_server_ctx instanceof IResourceServerContext){
+                foreach($resource_server_ctx->getCurrentUserGroups() as $group)
+                {
+                    if(isset($group['slug']) && trim($group['slug']) == $code)
+                        return true;
+                }
+            }
+        }
+        return $res;
     }
 
     /**
@@ -690,6 +745,15 @@ class Member extends SilverstripeBaseModel
         $codes = [];
         foreach ($this->getGroups() as $g) {
             $codes[] = $g->getCode();
+        }
+        // from IDP
+        $resource_server_ctx = App::make(IResourceServerContext::class);
+        if($resource_server_ctx instanceof IResourceServerContext){
+            foreach($resource_server_ctx->getCurrentUserGroups() as $group)
+            {
+                if(isset($group['slug']))
+                    $codes[] = trim($group['slug']);
+            }
         }
         return $codes;
     }
@@ -1114,7 +1178,7 @@ SQL;
     public function getFullName(){
         $fullname = $this->first_name;
         if(!empty($this->last_name)){
-            if(!empty($fullname)) $fullname .= ', ';
+            if(!empty($fullname)) $fullname .= ' ';
             $fullname .= $this->last_name;
         }
         return $fullname;
@@ -1293,9 +1357,9 @@ SQL;
     }
 
     /**
-     * @return int
+     * @return int|null
      */
-    public function getUserExternalId(): int
+    public function getUserExternalId(): ?int
     {
         return $this->user_external_id;
     }
@@ -1308,4 +1372,68 @@ SQL;
         $this->user_external_id = $user_external_id;
     }
 
+    /**
+     * @return Sponsor[]
+     */
+    public function getSponsorMemberships()
+    {
+        return $this->sponsor_memberships;
+    }
+
+    /**
+     * @return ArrayCollection|SummitOrder[]
+     */
+    public function getSummitRegistrationOrders(){
+        return $this->summit_registration_orders;
+    }
+
+    /**
+     * @param int $order_id
+     * @return SummitOrder|null
+     */
+    public function getSummitRegistrationOrderById(int $order_id):?SummitOrder{
+        $criteria = Criteria::create()
+            ->where(Criteria::expr()->eq("id", $order_id));
+        $order = $this->summit_registration_orders->matching($criteria)->first();
+
+        return $order === false ? null : $order;
+    }
+
+    /**
+     * @param SummitOrder $summit_order
+     */
+    public function addSummitRegistrationOrder(SummitOrder $summit_order){
+        if($this->summit_registration_orders->contains($summit_order)) return;
+        $this->summit_registration_orders->add($summit_order);
+        $summit_order->setOwner($this);
+    }
+
+    /**
+     * @param Summit $summit
+     * @return Sponsor|null
+     */
+    public function getSponsorBySummit(Summit $summit):?Sponsor{
+        $sponsor = $this->sponsor_memberships->filter(function($entity) use($summit){
+            return $entity->getSummitId() == $summit->getId();
+        })->first();
+
+        return $sponsor === false ? null : $sponsor;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getMembershipType(): ?string
+    {
+        return $this->membership_type;
+    }
+
+    /**
+     * @param Group $group
+     */
+    public function add2Group(Group $group){
+        if($this->groups->contains($group)) return;
+        $this->groups->add($group);
+        $group->addMember($this);
+    }
 }

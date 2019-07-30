@@ -15,7 +15,6 @@
 
 use models\oauth2\IResourceServerContext;
 use models\utils\IBaseRepository;
-
 /**
  * Class OAuth2ProtectedController
  * OAuth2 Protected Base API
@@ -41,5 +40,22 @@ abstract class OAuth2ProtectedController extends JsonController
         parent::__construct();
         $this->resource_server_context = $resource_server_context;
     }
+
+    /**
+     * @return IResourceServerContext
+     */
+    protected function getResourceServerContext(): IResourceServerContext
+    {
+        return $this->resource_server_context;
+    }
+
+    /**
+     * @return IBaseRepository
+     */
+    protected function getRepository(): IBaseRepository
+    {
+        return $this->repository;
+    }
+
 
 }

@@ -79,11 +79,14 @@ abstract class AbstractBookableRoomReservationEmail extends Mailable
     public $reservation_currency;
 
     /**
+<<<<<<< HEAD
      * @var string
      */
     public $summit_name;
 
     /**
+=======
+>>>>>>> Summit Registration Model/Endpoints
      * AbstractBookableRoomReservationEmail constructor.
      * @param SummitRoomReservation $reservation
      */

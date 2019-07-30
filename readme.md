@@ -57,3 +57,7 @@ php artisan doctrine:migrations:status --connection=model
 
 ## run
 php artisan doctrine:migrations:migrate --connection=model 
+
+## Queues
+
+php artisan queue:work

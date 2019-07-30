@@ -11,11 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
-
+use Doctrine\ORM\QueryBuilder;
 use Illuminate\Support\Facades\Log;
 use models\summit\ISummitRepository;
 use models\summit\Summit;
 use App\Repositories\SilverStripeDoctrineRepository;
+use utils\DoctrineHavingFilterMapping;
 /**
  * Class DoctrineSummitRepository
  * @package App\Repositories\Summit
@@ -26,13 +27,57 @@ final class DoctrineSummitRepository
 {
 
     /**
+     * @return array
+     */
+    protected function getFilterMappings()
+    {
+        return [
+            'start_date'               => 'e.begin_date:datetime_epoch',
+            'end_date'                 => 'e.end_date:datetime_epoch',
+            'registration_begin_date'  => 'e.registration_begin_date:datetime_epoch',
+            'registration_end_date'    => 'e.registration_end_date:datetime_epoch',
+            'ticket_types_count'       => new DoctrineHavingFilterMapping("","tt.summit", "count(tt.id) :operator :value"),
+        ];
+    }
+
+    /**
+     * @return array
+     */
+    protected function getOrderMappings()
+    {
+        return [
+            'id'                      => 'e.id',
+            'name'                    => 'e.name',
+            'begin_date'              => 'e.begin_date',
+            'registration_begin_date' => 'e.registration_begin_date',
+        ];
+    }
+
+    /**
+     * @param QueryBuilder $query
+     * @return QueryBuilder
+     */
+    protected function applyExtraFilters(QueryBuilder $query){
+        return $query;
+    }
+
+    /**
+     * @param QueryBuilder $query
+     * @return QueryBuilder
+     */
+    protected function applyExtraJoins(QueryBuilder $query){
+        $query = $query->leftJoin("e.ticket_types", "tt");
+        return $query;
+    }
+
+    /**
      * @return Summit
      */
     public function getCurrent()
     {
         $res = $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->where('s.active = 1')
             ->orderBy('s.begin_date', 'DESC')
             ->getQuery()
@@ -48,7 +93,7 @@ final class DoctrineSummitRepository
         $now_utc = new \DateTime('now', new \DateTimeZone('UTC'));
         return $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->where('s.begin_date <= :now and s.end_date >= :now')
             ->orWhere('s.begin_date >= :now')
             ->orderBy('s.begin_date', 'DESC')
@@ -64,7 +109,7 @@ final class DoctrineSummitRepository
     {
         return $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->where('s.available_on_api = 1')
             ->orderBy('s.begin_date', 'ASC')
             ->getQuery()
@@ -78,7 +123,7 @@ final class DoctrineSummitRepository
     {
         return $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->orderBy('s.begin_date', 'ASC')
             ->getQuery()
             ->getResult();
@@ -100,7 +145,7 @@ final class DoctrineSummitRepository
     {
         return $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->where('s.name = :name')
             ->setParameter('name', $name)
             ->getQuery()
@@ -118,7 +163,7 @@ final class DoctrineSummitRepository
                 ->select("s")
                 ->from($this->getBaseEntity(), "s")
                 ->where('s.slug = :slug')
-                ->setParameter('slug', $slug)
+                ->setParameter('slug', strtolower($slug))
                 ->getQuery()
                 ->getOneOrNullResult();
         }
@@ -135,7 +180,7 @@ final class DoctrineSummitRepository
     {
         $res = $this->getEntityManager()->createQueryBuilder()
             ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->from($this->getBaseEntity(), "s")
             ->where('s.active = 1')
             ->orderBy('s.begin_date', 'DESC')
             ->getQuery()
@@ -150,8 +195,8 @@ final class DoctrineSummitRepository
     public function getCurrentAndAvailable()
     {
         $res = $this->getEntityManager()->createQueryBuilder()
-            ->select("s")
-            ->from(\models\summit\Summit::class, "s")
+            ->select( "s")
+            ->from($this->getBaseEntity(), 's')
             ->where('s.active = 1')
             ->andWhere('s.available_on_api = 1')
             ->orderBy('s.begin_date', 'DESC')
@@ -176,6 +221,42 @@ final class DoctrineSummitRepository
             ->andWhere("e.api_feed_key is not null")
             ->andWhere("e.api_feed_key <>''")
             ->andWhere("e.end_date >= :now")
+            ->orderBy('e.id', 'DESC')
+            ->setParameter("now", new \DateTime('now', new \DateTimeZone('UTC')))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return Summit[]
+     */
+    public function getAllWithExternalRegistrationFeed():array {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select("e")
+            ->from($this->getBaseEntity(), "e")
+            ->where("e.api_feed_type is not null")
+            ->andWhere("e.external_registration_feed_type <> ''")
+            ->andWhere("e.external_registration_feed_type is not null")
+            ->andWhere("e.external_registration_feed_api_key <> ''")
+            ->andWhere("e.external_registration_feed_api_key is not null")
+            ->andWhere("e.external_summit_id <> ''")
+            ->andWhere("e.external_summit_id is not null")
+            ->andWhere("e.end_date >= :now")
+            ->orderBy('e.id', 'DESC')
+            ->setParameter("now", new \DateTime('now', new \DateTimeZone('UTC')))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return array
+     */
+    public function getNotEnded(): array
+    {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select("e")
+            ->from($this->getBaseEntity(), "e")
+            ->where("e.end_date >= :now")
             ->orderBy('e.id', 'DESC')
             ->setParameter("now", new \DateTime('now', new \DateTimeZone('UTC')))
             ->getQuery()

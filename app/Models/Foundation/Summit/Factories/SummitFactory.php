@@ -11,6 +11,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
+
+use models\exceptions\ValidationException;
 use models\summit\Summit;
 /**
  * Class SummitFactory
@@ -55,10 +57,6 @@ final class SummitFactory
 
         if(isset($data['dates_label']) ){
             $summit->setDatesLabel(trim($data['dates_label']));
-        }
-
-        if(isset($data['external_summit_id']) ){
-            $summit->setExternalSummitId(trim($data['external_summit_id']));
         }
 
         if(isset($data['calendar_sync_name']) ){
@@ -116,6 +114,17 @@ final class SummitFactory
                 // set local time from UTC
                 $summit->setRegistrationBeginDate($start_datetime);
                 $summit->setRegistrationEndDate($end_datetime);
+
+                $summit_begin_date = $summit->getLocalBeginDate();
+                $summit_end_date   = $summit->getLocalEndDate();
+                if(!is_null($summit_begin_date) && !is_null($summit_end_date)){
+                    if($start_datetime > $summit_end_date)
+                        throw new ValidationException("The Registration Begin Date cannot be after the Summit End Date.");
+
+                    if($end_datetime > $summit_end_date)
+                        throw new ValidationException("The Registration End Date cannot be after the Summit End Date.");
+                }
+
             }
             else{
                 $summit->clearRegistrationDates();
@@ -136,6 +145,20 @@ final class SummitFactory
             }
         }
 
+        if(array_key_exists('reassign_ticket_till_date', $data)){
+            if (isset($data['reassign_ticket_till_date'])) {
+                $date = intval($data['reassign_ticket_till_date']);
+                $date = new \DateTime("@$date");
+                $date->setTimezone($summit->getTimeZone());
+
+                // set local time from UTC
+                $summit->setReassignTicketTillDate($date);
+            }
+            else{
+                $summit->clearReassignTicketTillDate();
+            }
+        }
+
         if(array_key_exists('schedule_start_date', $data)) {
             if (isset($data['schedule_start_date'])) {
                 $start_datetime = intval($data['schedule_start_date']);
@@ -148,6 +171,26 @@ final class SummitFactory
             else{
                 $summit->clearScheduleDefaultStartDate();
             }
+        }
+
+        if(isset($data['link']) ){
+            $summit->setLink(trim($data['link']));
+        }
+
+        if(isset($data['registration_disclaimer_mandatory']) ){
+            $registration_disclaimer_mandatory = boolval($data['registration_disclaimer_mandatory']);
+            $summit->setRegistrationDisclaimerMandatory($registration_disclaimer_mandatory);
+            if($registration_disclaimer_mandatory){
+
+                $registration_disclaimer_content = $data['registration_disclaimer_content'] ?? '';
+                if(empty($registration_disclaimer_content)){
+                    throw new ValidationException("registration_disclaimer_content is mandatory");
+                }
+            }
+        }
+
+        if(isset($data['registration_disclaimer_content'])){
+            $summit->setRegistrationDisclaimerContent(trim($data['registration_disclaimer_content']));
         }
 
         if(isset($data['link']) ){
@@ -185,12 +228,17 @@ final class SummitFactory
             $summit->setMeetingRoomBookingSlotLength(intval($data['meeting_room_booking_slot_length']));
         }
 
+        if(isset($data['registration_reminder_email_days_interval']) ){
+            // days
+            $summit->setRegistrationReminderEmailDaysInterval(intval($data['registration_reminder_email_days_interval']));
+        }
+
         if(isset($data['meeting_room_booking_max_allowed']) ){
             // maximun books per user
             $summit->setMeetingRoomBookingMaxAllowed(intval($data['meeting_room_booking_max_allowed']));
         }
 
-        // external feed
+        // external schedule feed
 
         if(isset($data['api_feed_type'])){
             $summit->setApiFeedType($data['api_feed_type']);
@@ -203,6 +251,22 @@ final class SummitFactory
         if(isset($data['api_feed_key'])){
             $summit->setApiFeedKey(trim($data['api_feed_key']));
         }
+
+        // external registration feed
+
+        if(isset($data['external_summit_id']) ){
+            $summit->setExternalSummitId(trim($data['external_summit_id']));
+        }
+
+        if(isset($data['external_registration_feed_type']) ){
+            $summit->setExternalRegistrationFeedType(trim($data['external_registration_feed_type']));
+        }
+
+        if(isset($data['external_registration_feed_api_key']) ){
+            $summit->setExternalRegistrationFeedApiKey(trim($data['external_registration_feed_api_key']));
+        }
+
+        $summit->generateRegistrationSlugPrefix();
 
         return $summit;
     }

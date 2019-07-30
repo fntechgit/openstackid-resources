@@ -22,6 +22,8 @@ use Doctrine\Common\Collections\ArrayCollection;
 use App\Models\Foundation\Summit\Events\Presentations\TrackQuestions\TrackQuestionTemplate;
 use models\exceptions\ValidationException;
 use models\main\Member;
+use models\main\PresentationSpeakerNotificationEmailRequest;
+
 /**
  * Class Presentation
  * @ORM\Entity
@@ -145,6 +147,12 @@ class Presentation extends SummitEvent
     private $selection_plan;
 
     /**
+     * @ORM\OneToMany(targetEntity="models\main\PresentationSpeakerNotificationEmailRequest", mappedBy="presentation",cascade={"persist", "remove"}, orphanRemoval=true)
+     * @var PresentationSpeakerNotificationEmailRequest[]
+     */
+    private $speaker_notifications;
+
+    /**
      * @ORM\OneToMany(targetEntity="models\summit\PresentationMaterial", mappedBy="presentation", cascade={"persist", "remove"}, orphanRemoval=true)
      * @var PresentationMaterial[]
      */
@@ -212,13 +220,14 @@ class Presentation extends SummitEvent
     public function __construct()
     {
         parent::__construct();
-        $this->progress        = self::PHASE_NEW;
-        $this->materials       = new ArrayCollection();
-        $this->speakers        = new ArrayCollection();
-        $this->answers         = new ArrayCollection();
-        $this->comments        = new ArrayCollection();
-        $this->to_record       = false;
-        $this->attending_media = false;
+        $this->progress              = self::PHASE_NEW;
+        $this->materials             = new ArrayCollection();
+        $this->speakers              = new ArrayCollection();
+        $this->answers               = new ArrayCollection();
+        $this->comments              = new ArrayCollection();
+        $this->speaker_notifications = new ArrayCollection();
+        $this->to_record             = false;
+        $this->attending_media       = false;
     }
 
     /**

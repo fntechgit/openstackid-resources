@@ -165,7 +165,7 @@ class CORSMiddleware
 						return $response;
 					}
 					// ----Step 2b: Store pre-flight request data in the Cache to keep (mark) the request as correctly followed the request pre-flight process
-					$data     = new CORSRequestPreflightData($request, $this->current_endpoint->isAllowCredentials());
+					$data     = new CORSRequestPreflightData($request, is_null($this->current_endpoint)? false : $this->current_endpoint->isAllowCredentials());
 					$cache_id = $this->generatePreflightCacheKey($request);
 					$this->cache_service->storeHash($cache_id, $data->toArray(), CORSRequestPreflightData::$cache_lifetime);
 					// ----Step 2c: Return corresponding response - This part should be customized with application specific constraints.....
@@ -289,7 +289,7 @@ class CORSMiddleware
 		// The Access-Control-Request-Method header indicates which method will be used in the actual
 		// request as part of the preflight request
 		// check request method
-		if ($request->headers->get('Access-Control-Request-Method') != $this->current_endpoint->getHttpMethod())
+		if (!is_null($this->current_endpoint) && $request->headers->get('Access-Control-Request-Method') != $this->current_endpoint->getHttpMethod())
 		{
 			$response->setStatusCode(405);
 			return $response;
@@ -297,7 +297,7 @@ class CORSMiddleware
 		// The Access-Control-Allow-Credentials header indicates whether the response to request
 		// can be exposed when the omit credentials flag is unset. When part of the response to a preflight request
 		// it indicates that the actual request can include user credentials.
-		if ( $this->current_endpoint->isAllowCredentials())
+		if (!is_null($this->current_endpoint) && $this->current_endpoint->isAllowCredentials())
 		{
 			$response->headers->set('Access-Control-Allow-Credentials', 'true');
 		}
@@ -431,12 +431,17 @@ class CORSMiddleware
 		return true;
 	}
 
+    /**
+     * @param $endpoint_path
+     * @param $http_method
+     * @return bool
+     */
 	private function checkEndPoint($endpoint_path, $http_method)
 	{
 		$this->current_endpoint = $this->endpoint_repository->getApiEndpointByUrlAndMethod($endpoint_path, $http_method);
 		if (is_null($this->current_endpoint))
 		{
-			return false;
+			return true;
 		}
 		if (!$this->current_endpoint->isAllowCors() || !$this->current_endpoint->isActive())
 		{

@@ -18,6 +18,27 @@ use App\Models\Foundation\Summit\DefaultTrackTagGroup;
 use App\Models\Foundation\Summit\Events\Presentations\TrackQuestions\TrackQuestionTemplate;
 use App\Models\Foundation\Summit\Events\RSVP\RSVPTemplate;
 use App\Models\Foundation\Summit\Locations\Banners\SummitLocationBanner;
+use App\Models\Foundation\Summit\Repositories\ISponsorRepository;
+use App\Models\Foundation\Summit\Repositories\ISponsorshipTypeRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitAttendeeBadgePrintRuleRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitAttendeeBadgeRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitBadgeFeatureTypeRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitBadgeTypeRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitOrderExtraQuestionTypeRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitOrderRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitRefundPolicyTypeRepository;
+use models\summit\ISponsorBadgeScanRepository;
+use models\summit\Sponsor;
+use models\summit\SponsorBadgeScan;
+use models\summit\SponsorshipType;
+use models\summit\SummitAttendeeBadge;
+use models\summit\SummitAttendeeBadgePrintRule;
+use models\summit\SummitBadgeFeatureType;
+use models\summit\SummitBadgeType;
+use models\summit\SummitOrder;
+use models\summit\SummitOrderExtraQuestionType;
+use models\summit\SummitRefundPolicyType;
+use models\summit\SummitTaxType;
 use App\Models\Foundation\Summit\Repositories\IDefaultSummitEventTypeRepository;
 use App\Models\Foundation\Summit\Repositories\IDefaultTrackTagGroupRepository;
 use App\Models\Foundation\Summit\Repositories\IPresentationCategoryGroupRepository;
@@ -27,12 +48,14 @@ use App\Models\Foundation\Summit\Repositories\ISelectionPlanRepository;
 use App\Models\Foundation\Summit\Repositories\ISpeakerActiveInvolvementRepository;
 use App\Models\Foundation\Summit\Repositories\ISpeakerEditPermissionRequestRepository;
 use App\Models\Foundation\Summit\Repositories\ISpeakerOrganizationalRoleRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitAccessLevelTypeRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitBookableVenueRoomAttributeTypeRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitBookableVenueRoomAttributeValueRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitEventTypeRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitLocationBannerRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitLocationRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitRoomReservationRepository;
+use App\Models\Foundation\Summit\Repositories\ISummitTaxTypeRepository;
 use App\Models\Foundation\Summit\Repositories\ISummitTrackRepository;
 use App\Models\Foundation\Summit\Repositories\ITrackQuestionTemplateRepository;
 use App\Models\Foundation\Summit\Repositories\ITrackTagGroupAllowedTagsRepository;
@@ -59,6 +82,7 @@ use models\summit\SpeakerOrganizationalRole;
 use models\summit\SpeakerRegistrationRequest;
 use models\summit\SpeakerSummitRegistrationPromoCode;
 use models\summit\SummitAbstractLocation;
+use models\summit\SummitAccessLevelType;
 use models\summit\SummitBookableVenueRoomAttributeType;
 use models\summit\SummitBookableVenueRoomAttributeValue;
 use models\summit\SummitEventType;
@@ -425,6 +449,90 @@ final class RepositoriesProvider extends ServiceProvider
             ISummitBookableVenueRoomAttributeValueRepository::class,
             function(){
                 return EntityManager::getRepository(SummitBookableVenueRoomAttributeValue::class);
+            }
+        );
+
+        App::singleton(
+            ISummitAccessLevelTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitAccessLevelType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitTaxTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitTaxType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitBadgeFeatureTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitBadgeFeatureType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitBadgeTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitBadgeType::class);
+            }
+        );
+
+        App::singleton(
+            ISponsorRepository::class,
+            function(){
+                return EntityManager::getRepository(Sponsor::class);
+            }
+        );
+
+        App::singleton(
+            ISponsorshipTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SponsorshipType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitRefundPolicyTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitRefundPolicyType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitOrderExtraQuestionTypeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitOrderExtraQuestionType::class);
+            }
+        );
+
+        App::singleton(
+            ISummitOrderRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitOrder::class);
+            }
+        );
+
+        App::singleton(
+            ISummitAttendeeBadgeRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitAttendeeBadge::class);
+            }
+        );
+
+        App::singleton(
+            ISponsorBadgeScanRepository::class,
+            function(){
+                return EntityManager::getRepository(SponsorBadgeScan::class);
+            }
+        );
+
+        App::singleton(
+            ISummitAttendeeBadgePrintRuleRepository::class,
+            function(){
+                return EntityManager::getRepository(SummitAttendeeBadgePrintRule::class);
             }
         );
 

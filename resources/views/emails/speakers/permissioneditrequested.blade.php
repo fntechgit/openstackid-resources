@@ -5,13 +5,13 @@
 </head>
 <body>
 <p>
-    Dear {{ $request->getSpeaker()->getFullName() }},
+    Dear {{ $speaker_full_name }},
 </p>
 <p>
-    User {{ $request->getRequestedBy()->getFullName() }} has requested to be able to edit your Speaker Profile.
+    User {{ $requested_by_full_name}} has requested to be able to edit your Speaker Profile.
 </p>
 <p>
-    To Allow that please click on the following link <a href="{{$request->getConfirmationLink($request->getSpeaker()->getId(), $token)}}">Allow</a>.
+    To Allow that please click on the following link <a href="{{ $link }}">Allow</a>.
 </p>
 <p>Cheers,<br/>{!! Config::get('app.tenant_name') !!} Support Team</p>
 </body>

@@ -11,6 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
+
+use App\Models\Foundation\Summit\ISummitExternalScheduleFeedType;
+use App\Models\Foundation\Summit\Registration\ISummitExternalRegistrationFeedType;
 use models\summit\Summit;
 /**
  * Class SummitValidationRulesFactory
@@ -32,7 +35,6 @@ final class SummitValidationRulesFactory
                 'active'                    => 'sometimes|boolean',
                 'dates_label'               => 'sometimes|string',
                 'time_zone_id'              => 'sometimes|timezone',
-                'external_summit_id'        => 'sometimes|string',
                 'available_on_api'          => 'sometimes|boolean',
                 'calendar_sync_name'        => 'sometimes|string|max:255',
                 'calendar_sync_desc'        => 'sometimes|string',
@@ -41,16 +43,23 @@ final class SummitValidationRulesFactory
                 'max_submission_allowed_per_user'  => 'sometimes|integer|min:1',
                 'secondary_registration_link'      => 'sometimes|url',
                 'secondary_registration_label'     => 'sometimes|string',
-                'slug'                             => 'nullable|string',
+                'slug'                             => 'required|string',
                 'meeting_room_booking_start_time'  => 'nullable|date_format:U',
                 'meeting_room_booking_end_time'    => 'nullable|required_with:meeting_room_booking_start_time|date_format:U|after_or_equal:meeting_room_booking_start_time',
                 'meeting_room_booking_slot_length' => 'nullable|integer',
                 'meeting_room_booking_max_allowed' => 'nullable|integer|min:1',
-                'api_feed_type'                    => sprintf('nullable|in:%s',implode(',', Summit::$valid_feed_types)),
+                'api_feed_type'                    => sprintf('nullable|in:%s',implode(',', ISummitExternalScheduleFeedType::ValidFeedTypes)),
                 'api_feed_url'                     => 'nullable|string|url|required_with:api_feed_type',
                 'api_feed_key'                     => 'nullable|string|required_with:api_feed_type',
                 'begin_allow_booking_date'  => 'nullable|date_format:U',
                 'end_allow_booking_date'    => 'nullable|required_with:begin_allow_booking_date|date_format:U|after_or_equal:begin_allow_booking_date',
+                'reassign_ticket_till_date'        => 'nullable|date_format:U',
+                'registration_disclaimer_content'  => 'nullable|string',
+                'registration_disclaimer_mandatory'  => 'nullable|boolean',
+                'registration_reminder_email_days_interval' => 'nullable|integer|min:1',
+                'external_summit_id'                 => 'nullable|string',
+                'external_registration_feed_type'    => sprintf('nullable|in:%s',implode(',', ISummitExternalRegistrationFeedType::ValidFeedTypes)),
+                'external_registration_feed_api_key' => 'nullable|string|required_with:external_registration_feed_type',
             ];
         }
 
@@ -65,7 +74,6 @@ final class SummitValidationRulesFactory
             'active'                    => 'sometimes|boolean',
             'dates_label'               => 'sometimes|string',
             'time_zone_id'              => 'required|timezone',
-            'external_summit_id'        => 'nullable|string',
             'available_on_api'          => 'sometimes|boolean',
             'calendar_sync_name'        => 'sometimes|string|max:255',
             'calendar_sync_desc'        => 'sometimes|string',
@@ -74,16 +82,23 @@ final class SummitValidationRulesFactory
             'max_submission_allowed_per_user'  => 'sometimes|integer|min:1',
             'secondary_registration_link'      => 'sometimes|url',
             'secondary_registration_label'     => 'sometimes|string',
-            'slug'                             => 'nullable|string',
+            'slug'                             => 'required|string',
             'meeting_room_booking_start_time'  => 'nullable|date_format:U',
             'meeting_room_booking_end_time'    => 'nullable|required_with:meeting_room_booking_start_time|date_format:U|after_or_equal:meeting_room_booking_start_time',
             'meeting_room_booking_slot_length' => 'nullable|integer',
             'meeting_room_booking_max_allowed' => 'nullable|integer|min:1',
-            'api_feed_type'                    => sprintf('nullable|in:%s',implode(',', Summit::$valid_feed_types)),
+            'api_feed_type'                    => sprintf('nullable|in:%s',implode(',', ISummitExternalScheduleFeedType::ValidFeedTypes)),
             'api_feed_url'                     => 'nullable|string|url|required_with:api_feed_type',
             'api_feed_key'                     => 'nullable|string|required_with:api_feed_type',
             'begin_allow_booking_date'  => 'nullable|date_format:U',
             'end_allow_booking_date'    => 'nullable|required_with:begin_allow_booking_date|date_format:U|after_or_equal:begin_allow_booking_date',
+            'reassign_ticket_till_date'        => 'nullable|date_format:U',
+            'registration_disclaimer_content'  => 'nullable|string',
+            'registration_disclaimer_mandatory'  => 'nullable|boolean',
+            'registration_reminder_email_days_interval' => 'nullable|integer|min:1',
+            'external_summit_id'                 => 'nullable|string',
+            'external_registration_feed_type'    => sprintf('nullable|in:%s',implode(',', ISummitExternalRegistrationFeedType::ValidFeedTypes)),
+            'external_registration_feed_api_key' => 'nullable|string|required_with:external_registration_feed_type',
         ];
     }
 }

@@ -32,7 +32,6 @@ use models\summit\Presentation;
 use models\utils\IEntity;
 use ModelSerializers\SerializerRegistry;
 use services\model\IPresentationService;
-use utils\ParseMultiPartFormDataInputStream;
 /**
  * Class OAuth2PresentationApiController
  * @package App\Http\Controllers

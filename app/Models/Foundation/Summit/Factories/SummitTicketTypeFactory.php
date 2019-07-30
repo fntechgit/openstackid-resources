@@ -11,6 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
+use models\summit\Summit;
 use models\summit\SummitTicketType;
 /**
  * Class SummitTicketTypeFactory
@@ -20,10 +21,12 @@ final class SummitTicketTypeFactory
 {
     /**
      * @param array $data
-     * @return SummitTicketTypeFactory
+     * @return SummitTicketType
      */
-    public static function build(array $data){
-        return self::populate(new SummitTicketType, $data);
+    public static function build(Summit $summit,array $data){
+        $ticket_type = new SummitTicketType;
+        $ticket_type->setSummit($summit);
+        return self::populate($ticket_type, $data);
     }
 
     /**
@@ -41,6 +44,35 @@ final class SummitTicketTypeFactory
 
         if(isset($data['external_id']))
             $ticket_type->setExternalId(trim($data['external_id']));
+
+        if(isset($data['cost']))
+            $ticket_type->setCost(floatval($data['cost']));
+
+        if(isset($data['currency']))
+            $ticket_type->setCurrency(trim($data['currency']));
+
+        if(isset($data['quantity_2_sell']))
+            $ticket_type->setQuantity2Sell(intval($data['quantity_2_sell']));
+
+        if(isset($data['max_quantity_per_order']))
+            $ticket_type->setMaxQuantityPerOrder(intval($data['max_quantity_per_order']));
+
+        if(isset($data['sales_start_date'])){
+            $val = intval($data['sales_start_date']);
+            $val = new \DateTime("@$val");
+            $val->setTimezone($ticket_type->getSummit()->getTimeZone());
+            $ticket_type->setSalesStartDate($ticket_type->getSummit()->convertDateFromTimeZone2UTC($val));
+        }
+
+        if(isset($data['sales_end_date'])){
+            $val = intval($data['sales_end_date']);
+            $val = new \DateTime("@$val");
+            $val->setTimezone($ticket_type->getSummit()->getTimeZone());
+            $ticket_type->setSalesEndDate($ticket_type->getSummit()->convertDateFromTimeZone2UTC($val));
+        }
+
+        if(isset($data['badge_type']))
+            $ticket_type->setBadgeType($data['badge_type']);
 
         return $ticket_type;
     }

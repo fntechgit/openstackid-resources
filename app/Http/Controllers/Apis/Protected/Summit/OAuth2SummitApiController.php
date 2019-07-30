@@ -28,7 +28,10 @@ use models\summit\ISummitRepository;
 use ModelSerializers\ISerializerTypeSelector;
 use ModelSerializers\SerializerRegistry;
 use services\model\ISummitService;
-use utils\PagingResponse;
+use utils\Filter;
+use utils\FilterElement;
+use utils\Order;
+use utils\OrderElement;
 use Illuminate\Http\Request as LaravelRequest;
 /**
  * Class OAuth2SummitApiController
@@ -92,79 +95,109 @@ final class OAuth2SummitApiController extends OAuth2ProtectedController
         $this->summit_service            = $summit_service;
     }
 
+    use ParametrizedGetAll;
+
     /**
      * @return mixed
      */
     public function getSummits()
     {
-        try {
 
-            $expand    = Request::input('expand', '');
-            $fields    = Request::input('fields', '');
-            $relations = Request::input('relations', '');
-
-            $relations = !empty($relations) ? explode(',', $relations) : [];
-            $fields    = !empty($fields) ? explode(',', $fields) : [];
-
-            $summits = [];
-
-            foreach($this->repository->getAvailables() as $summit){
-                $summits[] = SerializerRegistry::getInstance()->getSerializer($summit)->serialize($expand, $fields, $relations);
+        return $this->getAll(
+            function(){
+                return [
+                    'start_date'              => ['==','<','>','<=','>='],
+                    'end_date'                => ['==','<','>','<=','>='],
+                    'registration_begin_date' => ['==','<','>','<=','>='],
+                    'registration_end_date'   => ['==','<','>','<=','>='],
+                    'ticket_types_count'      => ['==','<','>','<=','>=','<>'],
+                ];
+            },
+            function(){
+                return [
+                    'start_date'              => 'sometimes|required|date_format:U',
+                    'end_date'                => 'sometimes|required_with:start_date|date_format:U|after:start_date',
+                    'registration_begin_date' => 'sometimes|required|date_format:U',
+                    'registration_end_date'   => 'sometimes|required_with:start_date|date_format:U|after:registration_begin_date',
+                    'ticket_types_count'      => 'sometimes|required|integer'
+                ];
+            },
+            function(){
+                return [
+                    'id',
+                    'name',
+                    'begin_date',
+                    'registration_begin_date'
+                ];
+            },
+            function($filter){
+                if($filter instanceof Filter){
+                    $filter->addFilterCondition(FilterElement::makeEqual('available_on_api', '1'));
+                }
+                return $filter;
+            },
+            function(){
+                return $this->serializer_type_selector->getSerializerType();
+            },
+            function(){
+                return new Order([
+                    OrderElement::buildAscFor("begin_date"),
+                ]);
+            },
+            function (){
+                return PHP_INT_MAX;
             }
-
-            $response = new PagingResponse
-            (
-                count($summits),
-                count($summits),
-                1,
-                1,
-                $summits
-            );
-
-            return $this->ok($response->toArray());
-        }
-        catch (Exception $ex) {
-            Log::error($ex);
-            return $this->error500($ex);
-        }
+        );
     }
 
     /**
      * @return mixed
      */
     public function getAllSummits(){
-             try {
-
-            $expand    = Request::input('expand', '');
-            $fields    = Request::input('fields', '');
-            $relations = Request::input('relations', '');
-
-            $relations = !empty($relations) ? explode(',', $relations) : [];
-            $fields    = !empty($fields) ? explode(',', $fields) : [];
-
-            $summits = [];
-
-            foreach($this->repository->getAllOrderedByBeginDate()as $summit){
-                $summits[] = SerializerRegistry::getInstance()->getSerializer($summit)->serialize($expand, $fields, $relations);
+        return $this->getAll(
+            function(){
+               return [
+                   'start_date'              => ['==','<','>','=>','>='],
+                   'end_date'                => ['==','<','>','=>','>='],
+                   'registration_begin_date' => ['==','<','>','=>','>='],
+                   'registration_end_date'   => ['==','<','>','=>','>='],
+                   'ticket_types_count'      => ['==','<','>','=>','>=','<>'],
+               ];
+            },
+            function(){
+                return [
+                    'start_date'              => 'sometimes|required|date_format:U',
+                    'end_date'                => 'sometimes|required_with:start_date|date_format:U|after:start_date',
+                    'registration_begin_date' => 'sometimes|required|date_format:U',
+                    'registration_end_date'   => 'sometimes|required_with:start_date|date_format:U|after:registration_begin_date',
+                    'ticket_types_count'      => 'sometimes|required|integer'
+                ];
+            },
+            function(){
+                return [
+                    'id',
+                    'name',
+                    'start_date',
+                    'registration_begin_date'
+                ];
+            },
+            function($filter){
+                return $filter;
+            },
+            function(){
+                return $this->serializer_type_selector->getSerializerType();
             }
-
-            $response = new PagingResponse
-            (
-                count($summits),
-                count($summits),
-                1,
-                1,
-                $summits
-            );
-
-            return $this->ok($response->toArray());
-        }
-        catch (Exception $ex) {
-            Log::error($ex);
-            return $this->error500($ex);
-        }
+            ,
+            function(){
+                return new Order([
+                    OrderElement::buildAscFor("begin_date"),
+                ]);
+            },
+            function (){
+                return PHP_INT_MAX;
+            }
+        );
     }
-
     /**
      * @param $summit_id
      * @return mixed
@@ -245,7 +278,10 @@ final class OAuth2SummitApiController extends OAuth2ProtectedController
 
             $rules = SummitValidationRulesFactory::build($payload);
             // Creates a Validator instance and validates the data.
-            $validation = Validator::make($payload, $rules);
+            $validation = Validator::make($payload, $rules, $messages = [
+                'slug.required' => 'A Slug is required.',
+                'schedule_start_date.before_or_equal' => 'Show on schedule page needs to be after the start of the Show And Before of the Show End.',
+            ]);
 
             if ($validation->fails()) {
                 $messages = $validation->messages()->toArray();
@@ -497,6 +533,14 @@ final class OAuth2SummitApiController extends OAuth2ProtectedController
             Log::error($ex);
             return $this->error500($ex);
         }
+    }
+
+    /**
+     * @return ISummitRepository
+     */
+    protected function getSummitRepository(): ISummitRepository
+    {
+        return $this->repository;
     }
 
     /**

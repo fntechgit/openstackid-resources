@@ -12,8 +12,6 @@
  * limitations under the License.
  **/
 use models\utils\IBaseRepository;
-use phpDocumentor\Reflection\Types\Array_;
-
 /**
  * Interface ISummitRepository
  * @package models\summit
@@ -66,4 +64,14 @@ interface ISummitRepository extends IBaseRepository
      * @return Summit[]
      */
     public function getWithExternalFeed():array;
+
+    /**
+     * @return array
+     */
+    public function getNotEnded():array;
+
+    /**
+     * @return array
+     */
+    public function getAllWithExternalRegistrationFeed():array;
 }

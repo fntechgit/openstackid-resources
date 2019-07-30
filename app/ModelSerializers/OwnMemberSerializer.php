@@ -21,7 +21,6 @@ final class OwnMemberSerializer extends AbstractMemberSerializer
 {
 
     protected static $array_mappings = [
-
         'FirstName'       => 'first_name:json_string',
         'LastName'        => 'last_name:json_string',
         'Gender'          => 'gender:json_string',
@@ -44,6 +43,7 @@ final class OwnMemberSerializer extends AbstractMemberSerializer
         'feedback',
         'schedule_summit_events',
         'rsvp',
+        'sponsor_memberships',
     ];
 
     private static $expand_group_events = [
@@ -99,6 +99,16 @@ final class OwnMemberSerializer extends AbstractMemberSerializer
                     ->serialize('team,team.member');
             }
             $values['team_memberships'] = $res;
+        }
+
+        if(in_array('sponsor_memberships', $relations)){
+            $res = [];
+            foreach ($member->getSponsorMemberships() as $sponsor_membership){
+                $res[] = SerializerRegistry::getInstance()
+                    ->getSerializer($sponsor_membership)
+                    ->serialize('summit,company,sponsorship');
+            }
+            $values['sponsor_memberships'] = $res;
         }
 
         if(in_array('favorite_summit_events', $relations) && !is_null($summit)){

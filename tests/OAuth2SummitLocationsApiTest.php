@@ -1353,7 +1353,7 @@ final class OAuth2SummitLocationsApiTest extends ProtectedApiTest
 
     // bookable rooms tests
 
-    public function testSummitGetBookableRoomsFilterDiffValuesSameColumn($summit_id = 27)
+    public function testSummitGetBookableRoomsFilterDiffValuesSameColumn($summit_id = 6)
     {
         $params = [
             'id'       => $summit_id,
@@ -1362,8 +1362,9 @@ final class OAuth2SummitLocationsApiTest extends ProtectedApiTest
             'order'    => '-id',
             'expand'   => 'venue,attribute_type',
             'filter'   => [
-                "attribute==Beer&&Screen",
-                "capacity<=20"
+                "availability_day==1579086000",
+                "attribute==",
+                "capacity>=1"
             ],
         ];
 
@@ -1391,7 +1392,7 @@ final class OAuth2SummitLocationsApiTest extends ProtectedApiTest
         $this->assertTrue(!is_null($rooms));
     }
 
-    public function testSummitGetBookableRoomAvailability($summit_id = 27, $room_id = 922, $day = 1572829200)
+    public function testSummitGetBookableRoomAvailability($summit_id = 6, $room_id = 20, $day = 1579172400)
     {
         $params = [
             'id'       => $summit_id,

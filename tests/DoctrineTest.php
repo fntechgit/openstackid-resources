@@ -17,6 +17,9 @@ use utils\PagingInfo;
 use utils\FilterParser;
 use utils\PagingResponse;
 use ModelSerializers\SerializerRegistry;
+use LaravelDoctrine\ORM\Facades\EntityManager;
+use LaravelDoctrine\ORM\Facades\Registry;
+use models\utils\SilverstripeBaseModel;
 /**
  * Class DoctrineTest
  */
@@ -193,5 +196,23 @@ final class DoctrineTest extends TestCase
         $presentations = $speaker->getRejectedPresentations($summit);
 
         $this->assertTrue(count($presentations) > 0);
+    }
+
+    public function testGetTicketTypeLock(){
+
+        $em1 = Registry::getManager(SilverstripeBaseModel::EntityManager);
+        $em2 = Registry::getManager(SilverstripeBaseModel::EntityManager);
+        $con1 = $em1->getConnection();
+        $con2 = $em2->getConnection();
+        $con1->beginTransaction(); // suspend auto-commit
+        $repo   =  EntityManager::getRepository(\models\summit\SummitTicketType::class);
+
+        $type = $repo->getByIdExclusiveLock(103);
+
+        $con2->beginTransaction(); // suspend aut
+
+        $type2 = $repo->getByIdExclusiveLock(103);
+
+        $con2->rollBack();
     }
 }

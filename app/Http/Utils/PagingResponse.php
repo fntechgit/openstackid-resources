@@ -125,4 +125,11 @@ final class PagingResponse
             'data'         =>  $items,
         ];
     }
+
+    /**
+     * @return bool
+     */
+    public function hasMoreItems():bool {
+        return $this->page < $this->last_page;
+    }
 }

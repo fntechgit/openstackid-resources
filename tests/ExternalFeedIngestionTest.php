@@ -26,6 +26,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use App\Services\Model\IScheduleIngestionService;
 use App\Services\Apis\ExternalScheduleFeeds\AbstractExternalScheduleFeed;
+use App\Models\Foundation\Summit\ISummitExternalScheduleFeedType;
 /**
  * Class ExternalFeedIngestionTest
  * @package Tests
@@ -136,7 +137,7 @@ JSON;
         $summit = new Summit();
         $summit->setActive(true);
         // set feed type (sched)
-        $summit->setApiFeedType(IExternalScheduleFeedFactory::SchedType);
+        $summit->setApiFeedType(ISummitExternalScheduleFeedType::SchedType);
         $summit->setApiFeedUrl("");
         $summit->setApiFeedKey("");
         $summit->setTimeZoneId("America/Chicago");

@@ -66,13 +66,15 @@ final class OAuth2SummitApiTest extends ProtectedApiTest
         $this->assertResponseStatus(200);
     }
 
+
     public function testGetAllSummits()
     {
 
         $start = time();
         $params = [
-            'relations'=>'none',
-            'expand'   => 'none',
+            'relations' => 'none',
+            'expand'    => 'none',
+            'filter'    => 'ticket_types_count>=16'
         ];
 
         $headers = ["HTTP_Authorization" => " Bearer " . $this->access_token];

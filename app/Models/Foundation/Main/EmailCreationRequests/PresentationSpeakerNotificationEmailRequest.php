@@ -30,7 +30,7 @@ class PresentationSpeakerNotificationEmailRequest  extends EmailCreationRequest
     protected $speaker;
 
     /**
-     * @ORM\ManyToOne(targetEntity="models\summit\Presentation")
+     * @ORM\ManyToOne(targetEntity="models\summit\Presentation", inversedBy="speaker_notifications")
      * @ORM\JoinColumn(name="PresentationID", referencedColumnName="ID")
      * @var Presentation
      */

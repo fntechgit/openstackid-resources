@@ -11,30 +11,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  **/
+
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
+
 // public api ( without AUTHZ [OAUTH2.0])
 Route::group([
     'namespace' => 'App\Http\Controllers',
-    'prefix'     => 'api/public/v1',
-    'before'     => [],
-    'after'      => [],
+    'prefix' => 'api/public/v1',
+    'before' => [],
+    'after' => [],
     'middleware' => [
         'ssl',
         'rate.limit:1000,1', // 1000 request per minute
         'etags'
     ]
-], function(){
+], function () {
     // members
-    Route::group(['prefix'=>'members'], function() {
+    Route::group(['prefix' => 'members'], function () {
         Route::get('', 'OAuth2MembersApiController@getAll');
     });
 
     // speakers
-    Route::group(['prefix'=>'speakers'], function() {
-        Route::group(['prefix'=>'{speaker_id}'], function(){
-            Route::group(['prefix'=>'edit-permission'], function(){
-                Route::group(['prefix'=>'{token}'], function(){
+    Route::group(['prefix' => 'speakers'], function () {
+        Route::group(['prefix' => '{speaker_id}'], function () {
+            Route::group(['prefix' => 'edit-permission'], function () {
+                Route::group(['prefix' => '{token}'], function () {
                     Route::get('approve', 'OAuth2SummitSpeakersApiController@approveSpeakerEditPermission');
                     Route::get('decline', 'OAuth2SummitSpeakersApiController@declineSpeakerEditPermission');
                 });
@@ -43,11 +45,12 @@ Route::group([
     });
 
     // summits
-    Route::group(['prefix'=>'summits'], function() {
-        Route::get('', [ 'middleware' => 'cache:'.Config::get('cache_api_response.get_summit_response_lifetime', 600), 'uses' => 'OAuth2SummitApiController@getSummits']);
+    Route::group(['prefix' => 'summits'], function () {
+        Route::get('', ['middleware' => 'cache:' . Config::get('cache_api_response.get_summit_response_lifetime', 600), 'uses' => 'OAuth2SummitApiController@getSummits']);
 
         Route::group(['prefix' => 'all'], function () {
-            Route::get('current',  'OAuth2SummitApiController@getAllCurrentSummit');
+            Route::get('{id}', 'OAuth2SummitApiController@getAllSummitByIdOrSlug');
+            Route::get('current', 'OAuth2SummitApiController@getAllCurrentSummit');
             Route::group(['prefix' => 'selection-plans'], function () {
                 Route::get('current/{status}', 'OAuth2SummitSelectionPlansApiController@getCurrentSelectionPlanByStatus')->where('status', 'submission|selection|voting');
             });
@@ -60,16 +63,31 @@ Route::group([
                     });
                 });
             });
+
+            Route::group(['prefix' => 'orders'], function () {
+                // api/public/v1/summits/all/orders/confirm ( open endpoint for payment gateway callbacks)
+                Route::post("confirm", "OAuth2SummitOrdersApiController@confirm");
+                Route::group(['prefix' => 'all'], function () {
+                    Route::group(['prefix' => 'tickets'], function () {
+                        Route::group(['prefix' => '{hash}'], function () {
+                            Route::get('', "OAuth2SummitOrdersApiController@getTicketByHash");
+                            Route::put('', "OAuth2SummitOrdersApiController@updateTicketByHash");
+                            Route::put('regenerate', "OAuth2SummitOrdersApiController@regenerateTicketHash");
+                            Route::get('pdf', "OAuth2SummitOrdersApiController@getTicketPDFByHash");
+                        });
+                    });
+                });
+            });
         });
 
         Route::group(['prefix' => '{id}'], function () {
-            Route::get('', [ 'middleware' => 'cache:'.Config::get('cache_api_response.get_summit_response_lifetime', 1200), 'uses' => 'OAuth2SummitApiController@getSummit'])->where('id', 'current|[0-9]+');
+            Route::get('', ['middleware' => 'cache:' . Config::get('cache_api_response.get_summit_response_lifetime', 1200), 'uses' => 'OAuth2SummitApiController@getSummit'])->where('id', 'current|[0-9]+');
             Route::get('published-events', 'OAuth2SummitEventsApiController@getScheduledEvents');
             // locations
             Route::group(['prefix' => 'locations'], function () {
                 Route::group(['prefix' => '{location_id}'], function () {
                     Route::get('', 'OAuth2SummitLocationsApiController@getLocation');
-                    Route::get('/events/published','OAuth2SummitLocationsApiController@getLocationPublishedEvents');
+                    Route::get('/events/published', 'OAuth2SummitLocationsApiController@getLocationPublishedEvents');
                     Route::group(['prefix' => 'banners'], function () {
                         Route::get('', 'OAuth2SummitLocationsApiController@getLocationBanners');
                     });
@@ -81,6 +99,17 @@ Route::group([
                 Route::get('sent', 'OAuth2SummitNotificationsApiController@getAllApprovedByUser');
             });
 
+            // orders
+            Route::group(['prefix' => 'orders'], function () {
+                Route::post('reserve', 'OAuth2SummitOrdersApiController@reserve');
+                Route::group(['prefix' => '{hash}'], function () {
+                    Route::put('checkout', 'OAuth2SummitOrdersApiController@checkout');
+                    Route::group(['prefix' => 'tickets'], function () {
+                        Route::get('mine', 'OAuth2SummitOrdersApiController@getMyTicketByOrderHash');
+                    });
+                    Route::delete('', 'OAuth2SummitOrdersApiController@cancel');
+                });
+            });
         });
     });
 

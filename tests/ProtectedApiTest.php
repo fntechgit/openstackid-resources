@@ -69,6 +69,16 @@ class AccessTokenServiceStub implements IAccessTokenService
             sprintf(SummitScopes::WritePresentationMaterialsData, $url),
             sprintf(SummitScopes::ReadMyBookableRoomsReservationData, $url),
             sprintf(SummitScopes::WriteMyBookableRoomsReservationData, $url),
+            sprintf(SummitScopes::ReadMyRegistrationOrders, $url),
+            sprintf(SummitScopes::ReadRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateRegistrationOrders, $url),
+            sprintf(SummitScopes::CreateOfflineRegistrationOrders, $url),
+            sprintf(SummitScopes::DeleteRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateMyRegistrationOrders, $url),
+            sprintf(SummitScopes::WriteBadgeScan, $url),
+            sprintf(SummitScopes::ReadBadgeScan, $url),
+            sprintf(SummitScopes::CreateRegistrationOrders, $url),
         );
 
         return AccessToken::createFromParams(
@@ -77,12 +87,24 @@ class AccessTokenServiceStub implements IAccessTokenService
                 'scope'               => implode(' ', $scopes),
                 'client_id'           => '1',
                 'audience'            => $realm,
+                //'user_id'             => '236',
+                //'user_external_id'    => '236',
                 'user_id'             => '1',
-                'user_external_id'    => '13867',
+                'user_external_id'    => '1',
                 'expires_in'          => 3600,
                 'application_type'    => 'WEB_APPLICATION',
                 'allowed_return_uris' => '',
-                'allowed_origins'     =>  ''
+                'allowed_origins'     =>  '',
+                'user_groups' => [
+                    [
+                       'slug' => 'badge-printers',
+
+                    ],
+                     [
+                       'slug' => 'administrators',
+
+                    ],
+                ],
             ]
         );
     }
@@ -135,7 +157,17 @@ class AccessTokenServiceStub2 implements IAccessTokenService
             sprintf(OrganizationScopes::ReadOrganizationData, $url),
             sprintf(SummitScopes::WritePresentationMaterialsData, $url),
             sprintf(SummitScopes::ReadMyBookableRoomsReservationData, $url),
+            sprintf(SummitScopes::ReadRegistrationOrders, $url),
             sprintf(SummitScopes::WriteMyBookableRoomsReservationData, $url),
+            sprintf(SummitScopes::ReadMyRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateMyRegistrationOrders, $url),
+            sprintf(SummitScopes::CreateOfflineRegistrationOrders, $url),
+            sprintf(SummitScopes::DeleteRegistrationOrders, $url),
+            sprintf(SummitScopes::UpdateRegistrationOrders, $url),
+            sprintf(SummitScopes::WriteBadgeScan, $url),
+            sprintf(SummitScopes::ReadBadgeScan, $url),
+            sprintf(SummitScopes::CreateRegistrationOrders, $url),
         );
 
         return AccessToken::createFromParams(
@@ -149,7 +181,12 @@ class AccessTokenServiceStub2 implements IAccessTokenService
                 'expires_in'          => 3600,
                 'application_type'    => 'SERVICE',
                 'allowed_return_uris' => '',
-                'allowed_origins'     =>  ''
+                'allowed_origins'     =>  '',
+                'user_groups' => [
+                    [
+                        //'slug' => 'administrators'
+                    ]
+                ],
             ]
         );
     }
